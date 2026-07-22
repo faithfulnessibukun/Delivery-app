@@ -5,9 +5,10 @@ function DashboardHeader() {
 
         <div className="bg-white rounded-xl shadow-lg p-6 flex items-center gap-5">
 
-          <div className="relative">
+          <div className="relative" >
             <img
               src="https://via.placeholder.com/100"
+              alt="dash"
               className="w-24 h-24 rounded-full object-cover border-4 border-blue-500"
             />
 

@@ -17,7 +17,7 @@ function Dashboard() {
         setSidebarOpen={setSidebarOpen}
       />
 
-      <main className="flex-1">
+      <main className="flex-1 md:ml-64">
 
         {/* Mobile Top Bar */}
         <div className="md:hidden flex items-center justify-between bg-white shadow px-4 py-3">

@@ -1,9 +1,15 @@
 
 import { useState, useEffect } from "react";
 
-function MenuForm({ menus, setMenus, editingMenu, setEditingMenu }) {
+function MenuForm({
+  menus,
+  setMenus,
+  editingMenu,
+  setEditingMenu,
+  categories,
+}) {
   const [foodName, setFoodName] = useState("");
-  const [category, setCategory] = useState("");
+const [category, setCategory] = useState("");  
   const [price, setPrice] = useState("");
   const [image, setImage] = useState("");
 
@@ -53,7 +59,7 @@ function MenuForm({ menus, setMenus, editingMenu, setEditingMenu }) {
     <div className="bg-white rounded-xl shadow p-6 mb-6">
       <h2 className="text-xl font-bold mb-4">Add New Menu Item</h2>
 
-      <div className="grid md:grid-cols-2 gap-4">
+      <div className="grid md:grid-cols-2 gap-4 items-start">
         <input
           type="text"
           placeholder="Food Name"
@@ -63,24 +69,26 @@ function MenuForm({ menus, setMenus, editingMenu, setEditingMenu }) {
         />
 
         <select
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-          className="border rounded-lg px-4 py-2"
-        >
-          <option value="">Select Category</option>
-          <option value="Meal">Meal</option>
-          <option value="Pizza">Pizza</option>
-          <option value="Burger">Burger</option>
-          <option value="Drinks">Drinks</option>
-          <option value="Desserts">Desserts</option>
-        </select>
+  value={category}
+  onChange={(e) => setCategory(e.target.value)}
+  className="border rounded-lg px-4 py-2"
+>
+  <option value="">Select Category</option>
+
+  {categories.map((item) => (
+    <option key={item} value={item}>
+      {item}
+    </option>
+  ))}
+</select>
+
 
         <input
           type="number"
           placeholder="Price"
           value={price}
           onChange={(e) => setPrice(e.target.value)}
-          className="border rounded-lg px-4 py-2"
+          className="border rounded-lg px-4 py-2 self-start"
         />
 
         <div>

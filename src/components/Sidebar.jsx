@@ -14,7 +14,7 @@ function Sidebar({ sidebarOpen, setSidebarOpen }) {
 
       <aside
         className={`
-          fixed md:static top-0 left-0 h-screen w-64
+          fixed top-0 left-0 h-screen w-64
           bg-gray-900 text-white p-6
           transform transition-transform duration-300 z-50
           ${

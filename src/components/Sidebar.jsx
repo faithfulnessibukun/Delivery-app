@@ -80,17 +80,8 @@ function Sidebar({ sidebarOpen, setSidebarOpen }) {
           </li>
 
           <li>
-            <NavLink
-              to="/profile"
-              onClick={() => setSidebarOpen(false)}
-              className={({ isActive }) =>
-                `block p-2 rounded hover:bg-gray-800 ${
-                  isActive ? "bg-gray-800" : ""
-                }`
-              }
-            >
-              Settings
-            </NavLink>
+            
+            
           </li>
         </ul>
       </aside>

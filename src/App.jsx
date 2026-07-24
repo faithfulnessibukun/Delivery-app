@@ -4,7 +4,7 @@ import Login from ".//pages/Authentication/Login";
 import Dashboard from "./pages/Dashboard";
 import Menu from "./pages/Menu";
 import Orders from "./pages/Orders";
-import Home from "./pages/Home";
+import CustomerHome from "./pages/CustomerHome"
 
 
 function App() {
@@ -14,7 +14,7 @@ function App() {
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/menu" element={<Menu />} />
       <Route path="/orders" element={<Orders />} />
-      <Route path="/home" element={<Home />} />
+      <Route path="/customerhome" element={<CustomerHome/>} />
     
     </Routes>
   );

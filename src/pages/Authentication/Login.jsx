@@ -39,7 +39,7 @@ const navigate = useNavigate();
   if (user.role === "vendor") {
     navigate("/dashboard");
   } else {
-    navigate("/home");
+    navigate("/CustomerHome");
   }
 };
 

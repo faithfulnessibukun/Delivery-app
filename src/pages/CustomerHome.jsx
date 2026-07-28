@@ -1,60 +1,52 @@
-import { FaSearch, FaMotorcycle, FaWallet, FaStar,
-  FaMapMarkerAlt, } from "react-icons/fa";
+import {useState} from "react";
+import {useNavigate} from "react-router-dom";
+import { 
+  FaSearch, 
+  FaMotorcycle, 
+  FaWallet, 
+  FaStar,
+  FaMapMarkerAlt, 
+} from "react-icons/fa";
+  import AdvertVideo from "../assets/Advert.mp4";
+
 
 function CustomerHome() {
-  const restaurants = [
-    {
-      id: 1,
-      name: "Chicken Republic",
-      category: "Fast Food",
-      image:
-        "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=600",
-      rating: 4.9,
-      location: "Ede",
-    },
-    {
-      id: 2,
-      name: "Domino's Pizza",
-      category: "Pizza",
-      image:
-        "https://images.unsplash.com/photo-1513104890138-7c749659a591?w=600",
-      rating: 5.9,
-      location: "opp Chapel",
-    },
-    {
-      id: 3,
-      name: "Sweet Sensation",
-      category: "African Meals",
-      image:
-        "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600",
-      rating: 4.7,
-      location: "manna palace",
-    },
-  ];
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const navigate = useNavigate();
+ 
 
-  const foods = [
-    {
-      id: 1,
-      name: "Grilled Chicken",
-      image:
-        "https://images.unsplash.com/photo-1548365328-9f547fb0953b?w=600",
-      price: "$12.99",
-    },
-    {
-      id: 2,
-      name: "Cheese Burger",
-      image:
-        "https://images.unsplash.com/photo-1550547660-d9450f859349?w=600",
-      price: "$9.99",
-    },
-    {
-      id: 3,
-      name: "Vegetable Rice",
-      image:
-        "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=600",
-      price: "$8.49",
-    },
-  ];
+  const menus = JSON.parse(localStorage.getItem("menus")) || [];
+  const restaurants = [
+  ...new Map(
+    menus
+      .filter((menu) => menu.restaurantName)
+      .map((menu) => [
+        menu.vendorId,
+        {
+          vendorId: menu.vendorId,
+          restaurantName: menu.restaurantName,
+          restaurantAddress: menu.restaurantAddress,
+          image: menu.image,
+        },
+      ])
+  ).values(),
+];
+  
+
+const categories = [
+  "All",
+  ...new Set(menus.map((menu) => menu.category)),
+];
+
+const filteredMenus =
+  selectedCategory === "All"
+    ? menus
+    : menus.filter(
+        (menu) => menu.category === selectedCategory
+      );
+
+  
+  
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -62,7 +54,7 @@ function CustomerHome() {
       {/* Header */}
       <div className="bg-green-600 text-white p-6 rounded-b-3xl shadow">
         <h1 className="text-3xl font-bold">
-          Hello 👋
+          Hello Ibukun👋
         </h1>
 
         <p className="mt-1">
@@ -79,6 +71,32 @@ function CustomerHome() {
           />
         </div>
       </div>
+     
+
+<div className="mx-6 mt-6 mb-6 rounded-2xl overflow-hidden shadow-lg relative">
+  <video
+    className="w-full h-64 md:h-80 object-cover"
+    autoPlay
+    muted
+    loop
+    playsInline
+  >
+    <source src={AdvertVideo} type="video/mp4" />
+  </video>
+
+  <div className="absolute inset-0 bg-black/40"></div>
+
+  <div className="absolute inset-0 flex flex-col justify-center px-8 text-white">
+    <h2 className="text-4xl font-bold">30% OFF</h2>
+    <p className="mt-2 text-lg">On Your First Order</p>
+    <button
+    className="mt-6 bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-lg font-semibold w-44">
+      Order Now
+  </button>
+    
+  </div>
+</div>
+     
 
       {/* Quick Actions */}
       <div className="grid grid-cols-2 gap-4 p-6">
@@ -110,127 +128,64 @@ function CustomerHome() {
 
         <div className="flex gap-3 overflow-x-auto">
 
-          {["🍕 Pizza","🍔 Burger","🍗 Chicken","🍚 Rice","🥤 Drinks","🍰 Dessert"].map((item)=>(
+          {categories.map((item) => (
             <button
-              key={item}
-              className="bg-white shadow px-5 py-3 rounded-xl whitespace-nowrap hover:bg-green-600 hover:text-white"
-            >
-              {item}
-            </button>
+  key={item}
+  onClick={() => setSelectedCategory(item)}
+  className={`px-5 py-3 rounded-xl whitespace-nowrap transition
+    ${
+      selectedCategory === item
+        ? "bg-green-600 text-white"
+        : "bg-white shadow hover:bg-green-600 hover:text-white"
+    }`}
+>
+  {item}
+</button>
           ))}
 
         </div>
         </div>
-      {/* Restaurants */}
-      <div className="px-6">
+      
+     {/* Restaurants */}
+<div className="px-6">
+  <h2 className="text-2xl font-bold mb-4">
+    Restaurants
+  </h2>
 
-        <h2 className="text-2xl font-bold mb-4">
-          Popular Restaurants
-        </h2>
+  <div className="grid md:grid-cols-3 gap-6">
+    {restaurants.map((restaurant) => (
+      <div
+        key={restaurant.vendorId}
+        className="bg-white rounded-xl shadow overflow-hidden hover:shadow-xl"
+      >
+        <img
+          src={restaurant.image || "https://via.placeholder.com/600x400"}
+          alt={restaurant.restaurantName}
+          className="w-full h-48 object-cover"
+        />
 
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="p-4">
+          <h3 className="font-bold text-lg">
+            {restaurant.restaurantName}
+          </h3>
 
-          {restaurants.map((restaurant) => (
+          <p className="text-sm text-gray-500">
+            {restaurant.restaurantAddress}
+          </p>
 
-            <div
-              key={restaurant.id}
-              className="bg-white rounded-xl shadow overflow-hidden hover:shadow-xl"
-            >
-              <img
-                src={restaurant.image}
-                alt={restaurant.name}
-                className="w-full h-48 object-cover"
-              />
-
-              <div className="p-4">
-
-                <h3 className="font-bold text-lg">
-                  {restaurant.name}
-                </h3>
-                   <p className="text-gray-500">
-                  {restaurant.category}
-                </p>
-
-                  <div className="flex justify-between mt-2 text-sm">
-
-                  <span className="flex items-center gap-1 text-yellow-500">
-                    <FaStar />
-                    {restaurant.rating}
-                  </span>
-
-                  <span className="flex items-center gap-1 text-gray-500">
-                    <FaMapMarkerAlt />
-                    {restaurant.location}
-                  </span>
-
-                </div>
-
-                
-
-                <button className="mt-4 w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700">
-                  View Menu
-                </button>
-
-              </div>
-
-            </div>
-
-          ))}
-
+          <button
+            onClick={() => navigate(`/restaurant/${restaurant.vendorId}`)}
+            className="mt-4 w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700"
+          >
+            View Menu
+          </button>
         </div>
-
       </div>
+    ))}
+  </div>
+</div>
 
-      {/* Meals */}
 
-      <div className="p-6">
-
-        <h2 className="font-bold text-xl mb-4">
-          Popular Meals
-        </h2>
-
-        <div className="grid md:grid-cols-3 gap-6">
-
-          {foods.map((food)=>(
-
-            <div
-              key={food.id}
-              className="bg-white rounded-xl overflow-hidden shadow"
-            >
-
-              <img
-                src={food.image}
-                alt={food.name}
-                className="h-52 w-full object-cover"
-              />
-
-              <div className="p-4">
-
-                <h3 className="font-bold">
-                  {food.name}
-                </h3>
-
-                <div className="flex justify-between items-center mt-3">
-
-                  <span className="font-bold text-green-600">
-                    {food.price}
-                  </span>
-
-                  <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
-                    Add
-                  </button>
-
-                </div>
-
-              </div>
-
-            </div>
-
-          ))}
-
-        </div>
-
-      </div>
 
     </div>
   );

@@ -27,11 +27,25 @@ const [category, setCategory] = useState("");
       alert("Please fill all fields");
       return;
     }
+    const currentUser = JSON.parse(
+  localStorage.getItem("currentUser")
+);
+
+if (!currentUser) {
+  alert("Please log in first.");
+  return;
+}
 
     if (editingMenu) {
       const updatedMenus = menus.map((menu) =>
         menu.id === editingMenu.id
-          ? { ...menu, foodName, category, price, image }
+          ? {
+    ...menu,
+    foodName,
+    category,
+    price,
+    image,
+  }
           : menu
       );
 
@@ -39,12 +53,24 @@ const [category, setCategory] = useState("");
       setEditingMenu(null);
     } else {
       const newMenu = {
-        id: Date.now(),
-        foodName,
-        category,
-        price,
-        image,
-      };
+  id: Date.now(),
+
+  vendorId: currentUser.id,
+
+  vendorName: currentUser.fullName,
+
+  restaurantName: currentUser.restaurantName,
+
+  restaurantAddress: currentUser.restaurantAddress,
+
+  foodName,
+
+  category,
+
+  price,
+
+  image,
+};
 
       setMenus([...menus, newMenu]);
     }

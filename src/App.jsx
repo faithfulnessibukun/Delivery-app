@@ -5,6 +5,7 @@ import Dashboard from "./pages/Dashboard";
 import Menu from "./pages/Menu";
 import Orders from "./pages/Orders";
 import CustomerHome from "./pages/CustomerHome"
+import RestaurantMenu from "./pages/RestaurantMenu"
 
 
 function App() {
@@ -15,7 +16,7 @@ function App() {
       <Route path="/menu" element={<Menu />} />
       <Route path="/orders" element={<Orders />} />
       <Route path="/customerhome" element={<CustomerHome/>} />
-    
+      <Route path="/restaurant/:vendorId" element={<RestaurantMenu />} />
     </Routes>
   );
 }

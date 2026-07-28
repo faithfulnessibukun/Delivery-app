@@ -1,225 +1,121 @@
-import { useParams } from "react-router-dom";
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useMemo } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { FaArrowLeft, FaMapMarkerAlt, FaFire } from "react-icons/fa";
 
+const getStoredArray = (key) => {
+  try {
+    const value = JSON.parse(localStorage.getItem(key) ?? "[]");
+    return Array.isArray(value) ? value : [];
+  } catch {
+    return [];
+  }
+};
+
+// Route: /restaurant/:vendorId
 function RestaurantMenu() {
-  const [cart, setCart] = useState(
-  JSON.parse(localStorage.getItem("cart")) || []
-);
   const { vendorId } = useParams();
   const navigate = useNavigate();
-
-  const menus =
-    JSON.parse(localStorage.getItem("menus")) || [];
-
-  const restaurantMenus = menus.filter(
-    (menu) => String(menu.vendorId) === vendorId
+  const menus = useMemo(() => getStoredArray("menus"), []);
+  const restaurantMenus = useMemo(
+    () => menus.filter((menu) => String(menu.vendorId) === String(vendorId)),
+    [menus, vendorId]
   );
+  const restaurant = restaurantMenus[0];
 
-  if (restaurantMenus.length === 0) {
+  if (!restaurant) {
     return (
-      <div className="p-10 text-center">
-        No meals available.
+      <div className="min-h-screen bg-[#FBF6EE] flex flex-col items-center justify-center px-6 text-center">
+        <p className="text-[#8A8378] mb-4">
+          This restaurant doesn't have a menu yet.
+        </p>
+        <button
+          onClick={() => navigate(-1)}
+          className="bg-[#E8491D] text-white px-6 py-2.5 rounded-xl font-bold hover:bg-[#C73A15] transition"
+        >
+          Go back
+        </button>
       </div>
     );
   }
 
-  const restaurant = restaurantMenus[0];
-      const addToCart = (menu) => {
-  let updatedCart = [...cart];
-
-  const existingItem = updatedCart.find(
-    (item) => item.id === menu.id
-  );
-
-  if (existingItem) {
-    existingItem.quantity += 1;
-  } else {
-    updatedCart.push({
-      ...menu,
-      quantity: 1,
-    });
-  }
-
-  setCart(updatedCart);
-
-  localStorage.setItem(
-    "cart",
-    JSON.stringify(updatedCart)
-  );
-};
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
-
-    <div className="flex gap-8">
-
-      {/* Left Side */}
-      <div className="w-2/3">
-
-      <h1 className="text-3xl font-bold">
-        {restaurant.restaurantName}
-      </h1>
-
-      <p className="text-gray-500 mb-8">
-        {restaurant.restaurantAddress}
-      </p>
+    <div className="min-h-screen bg-[#FBF6EE]">
+      {/* Header */}
+      <div className="relative">
+        <img
+          src={restaurant.image || "https://via.placeholder.com/800x400"}
+          alt={restaurant.restaurantName}
+          className="w-full h-56 object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#1F1B16]/50 via-transparent to-[#1F1B16]/20" />
+        <button
+          onClick={() => navigate(-1)}
+          className="absolute top-5 left-5 bg-white/90 rounded-full p-3 shadow hover:bg-white transition"
+        >
+          <FaArrowLeft className="text-[#1F1B16]" />
+        </button>
       </div>
 
-      <div className="grid md:grid-cols-3 gap-6">
+      <div className="bg-white rounded-t-[2rem] -mt-6 relative px-6 pt-6 pb-4 shadow-sm">
+        <h1
+          className="text-2xl font-black text-[#1F1B16]"
+          style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+        >
+          {restaurant.restaurantName}
+        </h1>
+        <div className="flex items-center gap-4 mt-2 text-sm text-[#8A8378]">
+          <span className="flex items-center gap-1">
+            <FaMapMarkerAlt size={12} />
+            {restaurant.restaurantAddress}
+          </span>
+          <span className="flex items-center gap-1 text-[#E8491D] font-bold">
+            <FaFire size={12} />
+            {restaurant.rating || 4.5}
+          </span>
+        </div>
+      </div>
 
-        {restaurantMenus.map((menu) => (
-
-          <div
-            key={menu.id}
-            className="bg-white rounded-xl shadow overflow-hidden"
-          >
-            <img
-              src={menu.image}
-              alt={menu.foodName}
-              className="w-full h-48 object-cover"
-            />
-
-            <div className="p-4">
-
-              <h2 className="font-bold text-xl">
-                {menu.foodName}
-              </h2>
-
-              <p className="text-gray-500">
-                {menu.category}
-              </p>
-
-              <p className="text-green-600 font-bold mt-2">
-                ₦{menu.price}
-              </p>
-
-              <button
-              onClick={() => addToCart(menu)}
-            className="mt-4 w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700"
-             >
-                Add to Cart
+      {/* Menu list */}
+      <div className="px-6 py-6">
+        <h2
+          className="font-black text-xl mb-4 text-[#1F1B16]"
+          style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+        >
+          Menu
+        </h2>
+        <div className="grid sm:grid-cols-2 gap-4">
+          {restaurantMenus.map((item, index) => (
+            <button
+              key={item.id ?? index}
+              onClick={() =>
+                navigate(`/restaurant/${vendorId}/menu/${item.id ?? index}`)
+              }
+              className="text-left bg-white rounded-2xl shadow hover:shadow-lg transition overflow-hidden flex border-2 border-transparent hover:border-[#F4B740]"
+            >
+              <img
+                src={item.itemImage || item.image || "https://via.placeholder.com/200"}
+                alt={item.name || item.itemName}
+                className="w-28 h-28 object-cover shrink-0"
+              />
+              <div className="p-3 flex flex-col justify-center">
+                <h3 className="font-bold text-[#1F1B16]">
+                  {item.name || item.itemName || "Menu item"}
+                </h3>
+                {item.description && (
+                  <p className="text-xs text-[#8A8378] mt-1 line-clamp-2">
+                    {item.description}
+                  </p>
+                )}
+                {item.price && (
+                  <p className="text-[#E8491D] font-black mt-2">
+                    ₦{Number(item.price).toLocaleString()}
+                  </p>
+                )}
+              </div>
             </button>
-
-            </div>
-
-          </div>
-
-        ))}
+          ))}
         </div>
-
-      {/* Cart goes here */}
-      {/* Right Side Cart */}
-<div className="w-1/3">
-
-  <div className="bg-white rounded-2xl shadow-lg p-6 sticky top-6">
-
-    <h2 className="text-2xl font-bold mb-6">
-      🛒 Your Order
-    </h2>
-
-    {cart.length === 0 ? (
-
-      <div className="text-center text-gray-500 py-12">
-        <p>Your cart is empty.</p>
-        <p className="text-sm mt-2">
-          Add meals from this restaurant.
-        </p>
       </div>
-
-    ) : (
-
-      <>
-        {cart
-  .filter((item) => item.vendorId === restaurant.vendorId)
-  .map((item) => (
-
-          <div
-            key={item.id}
-            className="flex gap-3 border-b py-4"
-          >
-
-            <img
-              src={item.image}
-              alt={item.foodName}
-              className="w-16 h-16 rounded-lg object-cover"
-            />
-
-            <div className="flex-1">
-
-              <h3 className="font-semibold">
-                {item.foodName}
-              </h3>
-
-              <p className="text-sm text-gray-500">
-                {item.restaurantName}
-              </p>
-
-              <p className="text-green-600 font-bold">
-                ₦{item.price}
-              </p>
-
-              <div className="flex items-center gap-3 mt-2">
-
-  <button
-    onClick={() => decreaseQuantity(item.id)}
-    className="w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300"
-  >
-    -
-  </button>
-
-  <span className="font-semibold">
-    {item.quantity}
-  </span>
-
-  <button
-    onClick={() => increaseQuantity(item.id)}
-    className="w-8 h-8 rounded-full bg-green-600 text-white hover:bg-green-700"
-  >
-    +
-  </button>
-
-</div>
-
-            </div>
-
-          </div>
-
-        ))}
-
-        <div className="mt-6 border-t pt-4">
-
-          <div className="flex justify-between font-bold text-lg">
-
-            <span>Total</span>
-
-            <span>
-              ₦
-              {cart
-  .filter((item) => item.vendorId === restaurant.vendorId)
-  .reduce(
-    (total, item) =>
-      total + Number(item.price) * item.quantity,
-    0
-  )}
-            </span>
-
-          </div>
-
-          <button
-            className="mt-5 w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700"
-          >
-            Checkout
-          </button>
-
-        </div>
-      </>
-    )}
-
-  </div>
-
-</div>
-      </div>
-
     </div>
   );
 }

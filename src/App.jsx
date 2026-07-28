@@ -6,6 +6,7 @@ import Menu from "./pages/Menu";
 import Orders from "./pages/Orders";
 import CustomerHome from "./pages/CustomerHome"
 import RestaurantMenu from "./pages/RestaurantMenu"
+import Menuitemdetail from "./pages/Menuitemdetail"
 
 
 function App() {
@@ -15,8 +16,13 @@ function App() {
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/menu" element={<Menu />} />
       <Route path="/orders" element={<Orders />} />
-      <Route path="/customerhome" element={<CustomerHome/>} />
+      <Route path="/customerhome" element={<CustomerHome />} />
       <Route path="/restaurant/:vendorId" element={<RestaurantMenu />} />
+      <Route path="/restaurantmenu" element={<RestaurantMenu />} />
+      <Route path="/restaurantmenu/:vendorId" element={<RestaurantMenu />} />
+      <Route path="/menuitemdetail" element={<Menuitemdetail />} />
+      <Route path="/restaurant/:vendorId/menu/:itemId" element={<Menuitemdetail />} />
+      <Route path="/restaurantmenu/:vendorId/menu/:itemId" element={<Menuitemdetail />} />
     </Routes>
   );
 }

@@ -1,33 +1,50 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { FaArrowLeft, FaMinus, FaPlus } from "react-icons/fa";
+import { FaArrowLeft, FaMinus, FaPlus, FaCheck } from "react-icons/fa";
+import MOCK_MENUS from "../data/mockMenus";
+import ADD_ONS from "../data/addOns";
+import { useCart } from "../context/CartContext";
+import { getStoredArray } from "../utils/storage";
 
-const getStoredArray = (key) => {
-  try {
-    const value = JSON.parse(localStorage.getItem(key) ?? "[]");
-    return Array.isArray(value) ? value : [];
-  } catch {
-    return [];
-  }
-};
-
+// This page shows one menu item in detail: description, price, optional
+// add-ons, a quantity picker, and an "Add to cart" button.
 // Route: /restaurant/:vendorId/menu/:itemId
 function MenuItemDetail() {
   const { vendorId, itemId } = useParams();
   const navigate = useNavigate();
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
+  // Which add-on ids the customer has checked, e.g. ["extra-cheese"].
+  const [selectedAddOnIds, setSelectedAddOnIds] = useState([]);
+  const { refreshCart, openCart } = useCart();
 
-  const menus = useMemo(() => getStoredArray("menus"), []);
+  const toggleAddOn = (addOnId) => {
+    setSelectedAddOnIds((prev) =>
+      prev.includes(addOnId)
+        ? prev.filter((id) => id !== addOnId)
+        : [...prev, addOnId]
+    );
+  };
+
+  const useMockData = useMemo(
+    () => localStorage.getItem("useMockData") === "true",
+    []
+  );
+  const menus = useMemo(
+    () => (useMockData ? MOCK_MENUS : getStoredArray("menus")),
+    [useMockData]
+  );
 
   const restaurantMenus = useMemo(
     () => menus.filter((menu) => String(menu.vendorId) === String(vendorId)),
     [menus, vendorId]
   );
 
-  // Items may or may not have a stable `id`, so fall back to matching
-  // by position within that restaurant's menu (same order used to build
-  // the link in RestaurantMenu).
+  // Find which menu item this page is for. The URL's itemId is either:
+  //   1. a real item id (most items — try matching by `id` first), or
+  //   2. a plain list position/index (used as a fallback when an item has
+  //      no `id`, e.g. `restaurantMenus[2]` for the 3rd item in the list —
+  //      this is the same order/index RestaurantMenu.jsx used to build the link).
   const item =
     restaurantMenus.find((menu) => String(menu.id) === String(itemId)) ||
     restaurantMenus[Number(itemId)];
@@ -46,7 +63,15 @@ function MenuItemDetail() {
     );
   }
 
-  const price = Number(item.price) || 0;
+  const basePrice = Number(item.price) || 0;
+
+  // The full list of add-ons the customer has checked (name + price),
+  // and how much they add to the price of one unit of this item.
+  const selectedAddOns = ADD_ONS.filter((addOn) =>
+    selectedAddOnIds.includes(addOn.id)
+  );
+  const addOnsTotal = selectedAddOns.reduce((sum, addOn) => sum + addOn.price, 0);
+  const price = basePrice + addOnsTotal;
 
   const handleAddToCart = () => {
     const cart = getStoredArray("cart");
@@ -58,12 +83,15 @@ function MenuItemDetail() {
       name: item.name || item.itemName,
       price,
       quantity,
+      addOns: selectedAddOns,
       addedAt: Date.now(),
     });
 
     localStorage.setItem("cart", JSON.stringify(cart));
+    refreshCart();
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
+    openCart();
   };
 
   return (
@@ -104,8 +132,45 @@ function MenuItemDetail() {
         )}
 
         <p className="text-2xl font-black text-[#E8491D] mt-6">
-          ₦{price.toLocaleString()}
+          ₦{basePrice.toLocaleString()}
         </p>
+
+        {/* Add-ons / extras — optional, each one adds to the item's price. */}
+        <div className="mt-6">
+          <span className="font-bold text-[#1F1B16]">Add-ons</span>
+          <div className="mt-3 space-y-2">
+            {ADD_ONS.map((addOn) => {
+              const isSelected = selectedAddOnIds.includes(addOn.id);
+              return (
+                <button
+                  key={addOn.id}
+                  onClick={() => toggleAddOn(addOn.id)}
+                  className={`w-full flex items-center justify-between rounded-2xl px-4 py-3 border-2 transition ${
+                    isSelected
+                      ? "border-[#E8491D] bg-[#FCE7DD]"
+                      : "border-[#EDE4D3] bg-[#FBF6EE] hover:border-[#D8CDB6]"
+                  }`}
+                >
+                  <span className="flex items-center gap-2 font-medium text-[#1F1B16]">
+                    <span
+                      className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 border-2 ${
+                        isSelected
+                          ? "bg-[#E8491D] border-[#E8491D] text-white"
+                          : "border-[#D8CDB6]"
+                      }`}
+                    >
+                      {isSelected && <FaCheck size={10} />}
+                    </span>
+                    {addOn.name}
+                  </span>
+                  <span className="text-sm font-bold text-[#8A8378]">
+                    +₦{addOn.price.toLocaleString()}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
         {/* Quantity stepper */}
         <div className="flex items-center gap-4 mt-6">

@@ -1,14 +1,28 @@
 import { useState } from "react";
+import toast from "react-hot-toast";
 
-function VendorImageUpload({ vendor, setVendor }) {
-  const [preview, setPreview] = useState(
-    vendor?.restaurantImage || ""
+// Lets a vendor upload a picture for their restaurant. Can be used two
+// ways: with a `vendor`/`setVendor` passed in from a parent page (like
+// Dashboard), or standalone at its own route — if no props are passed,
+// it falls back to reading/writing the logged-in user directly.
+function VendorImageUpload({ vendor: vendorProp, setVendor: setVendorProp }) {
+  const [vendor, setVendor] = useState(
+    () => vendorProp || JSON.parse(localStorage.getItem("currentUser")) || null
   );
+  const [preview, setPreview] = useState(vendor?.restaurantImage || "");
 
+  // Reads the chosen image file and turns it into a base64 "data URL"
+  // (see the similar comment in MenuForm.jsx) so it can be saved directly
+  // in localStorage and shown with a plain <img src="...">.
   const handleUpload = (event) => {
     const file = event.target.files[0];
 
     if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please choose an image file.");
+      return;
+    }
 
     const reader = new FileReader();
 
@@ -20,18 +34,20 @@ function VendorImageUpload({ vendor, setVendor }) {
         restaurantImage: image,
       };
 
-      // Update React state
+      // Update React state — local, and the parent's if one was passed in
       setVendor(updatedVendor);
+      setVendorProp?.(updatedVendor);
 
       // Update localStorage
-      localStorage.setItem(
-        "currentUser",
-        JSON.stringify(updatedVendor)
-      );
+      localStorage.setItem("currentUser", JSON.stringify(updatedVendor));
 
       // Update preview
       setPreview(image);
+
+      toast.success("Picture uploaded!");
     };
+
+    reader.onerror = () => toast.error("Couldn't read that file. Try again.");
 
     reader.readAsDataURL(file);
   };

@@ -1,8 +1,13 @@
 import { useState } from "react";
 import { FaChevronDown, FaTimes, FaPlus } from "react-icons/fa";
+
+// The top section of the Menu page: title, a search box, and a
+// "All Categories" dropdown that lists every category with a delete (X)
+// button next to each, plus an "Add Category" option at the bottom.
 function MenuHeader({categories,deleteCategory,setShowCategoryModal
 
 }){
+  // Whether the categories dropdown is currently open.
   const [openDropdown, setOpenDropdown] = useState(false);
   return (
     <>

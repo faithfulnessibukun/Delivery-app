@@ -2,7 +2,25 @@
   "permissions": {
     "allow": [
       "Bash(npm uninstall *)",
-      "Bash(npx tailwindcss *)"
+      "Bash(npx tailwindcss *)",
+      "Bash(npm run *)",
+      "Bash(disown)",
+      "Read(//private/tmp/**)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5174/customerhome)",
+      "Bash(curl -sS -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:5174/customer-home)",
+      "Bash(/usr/bin/curl -sS -o /dev/null -w \"/ -> %{http_code}\\\\n\" http://localhost:5174/)",
+      "Bash(/usr/bin/curl -sS -o /dev/null -w \"/dashboard -> %{http_code}\\\\n\" http://localhost:5174/dashboard)",
+      "Bash(/usr/bin/curl -sS -o /dev/null -w \"/customer-home -> %{http_code}\\\\n\" http://localhost:5174/customer-home)",
+      "Bash(/usr/bin/curl -sS -o /dev/null -w \"/vendor-image-upload -> %{http_code}\\\\n\" http://localhost:5174/vendor-image-upload)",
+      "Bash(/usr/bin/tail -20 /tmp/vite-dev.log)",
+      "Bash(git log *)",
+      "Bash(/usr/bin/tail -15 /tmp/vite-dev.log)",
+      "Bash(/usr/bin/tail -8 /tmp/vite-dev.log)",
+      "Bash(/usr/bin/tail -6 /tmp/vite-dev.log)",
+      "Bash(/usr/bin/tail -4 /tmp/vite-dev.log)",
+      "Bash(/usr/bin/tail -10 /tmp/vite-dev.log)",
+      "Bash(/usr/bin/tail -12 /tmp/vite-dev.log)",
+      "Bash(/usr/bin/tail -5 /tmp/vite-dev.log)"
     ]
   }
 }

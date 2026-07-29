@@ -1,6 +1,12 @@
 
 import { useState, useEffect } from "react";
+import toast from "react-hot-toast";
 
+// A form for adding a new menu item, that also doubles as the edit form.
+// Which mode it's in depends on `editingMenu`: null means "adding new",
+// otherwise it's pre-filled with that item's details for editing.
+// `menus`/`setMenus` are passed down from Menu.jsx so this form can update
+// the same list that MenuTable.jsx displays.
 function MenuForm({
   menus,
   setMenus,
@@ -9,10 +15,12 @@ function MenuForm({
   categories,
 }) {
   const [foodName, setFoodName] = useState("");
-const [category, setCategory] = useState("");  
+const [category, setCategory] = useState("");
   const [price, setPrice] = useState("");
   const [image, setImage] = useState("");
 
+  // When "Edit" is clicked on an item in MenuTable, editingMenu gets set
+  // to that item — this fills the form fields with its current values.
   useEffect(() => {
     if (editingMenu) {
       setFoodName(editingMenu.foodName);
@@ -22,9 +30,10 @@ const [category, setCategory] = useState("");
     }
   }, [editingMenu]);
 
+  // Runs when "Add Menu" / "Update Menu" is clicked.
   const handleAddMenu = () => {
     if (!foodName || !category || !price) {
-      alert("Please fill all fields");
+      toast.error("Please fill all fields");
       return;
     }
     const currentUser = JSON.parse(
@@ -32,11 +41,13 @@ const [category, setCategory] = useState("");
 );
 
 if (!currentUser) {
-  alert("Please log in first.");
+  toast.error("Please log in first.");
   return;
 }
 
     if (editingMenu) {
+      // Editing: find that item by id and replace its fields, leave
+      // every other item in the list untouched.
       const updatedMenus = menus.map((menu) =>
         menu.id === editingMenu.id
           ? {
@@ -52,6 +63,9 @@ if (!currentUser) {
       setMenus(updatedMenus);
       setEditingMenu(null);
     } else {
+      // Adding: build a brand-new menu item. Restaurant details (name,
+      // address) come from the logged-in vendor's account, so every item
+      // they add is automatically tagged with their restaurant info.
       const newMenu = {
   id: Date.now(),
 
@@ -75,6 +89,7 @@ if (!currentUser) {
       setMenus([...menus, newMenu]);
     }
 
+    // Clear the form for the next item, whether we just added or edited.
     setFoodName("");
     setCategory("");
     setPrice("");
@@ -118,6 +133,9 @@ if (!currentUser) {
         />
 
         <div>
+          {/* This file input is visually hidden — the styled "Choose File"
+              label below is what the user actually clicks (its htmlFor
+              points at this input's id, which opens the file picker). */}
           <input
             id="foodImage"
             type="file"
@@ -127,6 +145,10 @@ if (!currentUser) {
               const file = e.target.files[0];
 
               if (!file) return;
+              // FileReader converts the chosen image file into a long
+              // base64 text string (a "data URL") we can store directly
+              // in localStorage and use as an <img src="..."> — no server
+              // upload needed since this app has no backend.
               const reader = new FileReader();
 
               reader.onloadend = () => {

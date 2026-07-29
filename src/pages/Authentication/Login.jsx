@@ -1,9 +1,28 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaUser, FaStore, FaPepperHot } from "react-icons/fa";
+import toast from "react-hot-toast";
+import { FaUser, FaStore, FaPepperHot, FaEye, FaEyeSlash } from "react-icons/fa";
 
+// A ready-made vendor account so moyo@gmail.com / admin123 always works
+// for logging in without having to register first.
+const SEED_ADMIN = {
+  id: "seed-admin",
+  fullName: "Moyo Admin",
+  email: "moyo@gmail.com",
+  phone: "",
+  password: "admin123",
+  role: "vendor",
+  restaurantName: "Admin",
+  restaurantAddress: "",
+};
+
+// This one page handles both logging in and registering a new account —
+// which form shows is controlled by the `isLogin` flag below, flipped by
+// the Login/Register tabs.
 function Login() {
-  const [isLogin, setIsLogin] = useState(true);
+  // Not logged in on landing → open straight into the Register tab.
+  const [isLogin, setIsLogin] = useState(false);
+  // "customer" or "vendor" — chosen on the Register form.
   const [role, setRole] = useState("customer");
   const [fullName, setFullName] = useState("");
   const [restaurantName, setRestaurantName] = useState("");
@@ -12,9 +31,33 @@ function Login() {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  // Each password field has its own show/hide toggle (the eye icon).
+  const [showPassword, setShowPassword] = useState(false);
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const navigate = useNavigate();
 
+  // Ensure the seed admin/vendor account exists so moyo@gmail.com / admin123
+  // always works for login without needing to register first.
+  useEffect(() => {
+    const users = JSON.parse(localStorage.getItem("users")) || [];
+    if (!users.some((user) => user.email === SEED_ADMIN.email)) {
+      localStorage.setItem("users", JSON.stringify([...users, SEED_ADMIN]));
+    }
+  }, []);
+
+  // If someone is already logged in, skip the login screen entirely.
+  useEffect(() => {
+    const user = JSON.parse(localStorage.getItem("currentUser"));
+    if (!user) return;
+    navigate(user.role === "vendor" ? "/dashboard" : "/customer-home");
+  }, [navigate]);
+
+  // Checks the typed email/password against every registered user in
+  // localStorage's "users" list. If one matches, save it as "currentUser"
+  // (that's what makes the person "logged in" everywhere else in the app)
+  // and send them to the right home screen for their role.
   const handleSubmit = (e) => {
     e.preventDefault();
 
@@ -25,38 +68,43 @@ function Login() {
     );
 
     if (!user) {
-      alert("Invalid email or password.");
+      toast.error("Invalid email or password.");
       return;
     }
 
     localStorage.setItem("currentUser", JSON.stringify(user));
 
-    alert("Login successful!");
+    toast.success("Login successful!");
 
     if (user.role === "vendor") {
       navigate("/dashboard");
     } else {
-      navigate("/CustomerHome");
+      navigate("/customer-home");
     }
   };
 
+  // Switches between the Login form and the Register form.
   const switchTo = (loginMode) => {
     setIsLogin(loginMode);
   };
 
+  // Validates the register form, then adds a brand-new user to
+  // localStorage's "users" list. Doesn't log the person in automatically —
+  // it just flips back to the Login tab so they can sign in with the
+  // account they just created.
   const handleRegister = (e) => {
     e.preventDefault();
 
     if (!fullName || !email || !phone || !password || !confirmPassword) {
-      alert("Please fill in all required fields.");
+      toast.error("Please fill in all required fields.");
       return;
     }
     if (role === "vendor" && (!restaurantName || !restaurantAddress)) {
-      alert("Please enter your restaurant details.");
+      toast.error("Please enter your restaurant details.");
       return;
     }
     if (password !== confirmPassword) {
-      alert("Passwords do not match.");
+      toast.error("Passwords do not match.");
       return;
     }
 
@@ -65,7 +113,7 @@ function Login() {
     const existingUser = users.find((user) => user.email === email);
 
     if (existingUser) {
-      alert("An account with this email already exists.");
+      toast.error("An account with this email already exists.");
       return;
     }
 
@@ -84,7 +132,7 @@ function Login() {
 
     localStorage.setItem("users", JSON.stringify(users));
 
-    alert("Registration successful! You can now log in.");
+    toast.success("Registration successful! You can now log in.");
 
     setIsLogin(true);
   };
@@ -169,13 +217,22 @@ function Login() {
 
               <div>
                 <label className={labelClasses}>Password</label>
-                <input
-                  type="password"
-                  placeholder="Enter password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className={inputClasses}
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className={`${inputClasses} pr-12`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[#A8A096] hover:text-[#5A5448] transition"
+                  >
+                    {showPassword ? <FaEyeSlash size={16} /> : <FaEye size={16} />}
+                  </button>
+                </div>
               </div>
 
               <button
@@ -283,24 +340,42 @@ function Login() {
 
               <div>
                 <label className={labelClasses}>Password</label>
-                <input
-                  type="password"
-                  placeholder="Password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className={inputClasses}
-                />
+                <div className="relative">
+                  <input
+                    type={showRegisterPassword ? "text" : "password"}
+                    placeholder="Password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className={`${inputClasses} pr-12`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowRegisterPassword((v) => !v)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[#A8A096] hover:text-[#5A5448] transition"
+                  >
+                    {showRegisterPassword ? <FaEyeSlash size={16} /> : <FaEye size={16} />}
+                  </button>
+                </div>
               </div>
 
               <div>
                 <label className={labelClasses}>Confirm Password</label>
-                <input
-                  type="password"
-                  placeholder="Confirm Password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className={inputClasses}
-                />
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    placeholder="Confirm Password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className={`${inputClasses} pr-12`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((v) => !v)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[#A8A096] hover:text-[#5A5448] transition"
+                  >
+                    {showConfirmPassword ? <FaEyeSlash size={16} /> : <FaEye size={16} />}
+                  </button>
+                </div>
               </div>
 
               <button

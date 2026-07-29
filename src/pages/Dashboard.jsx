@@ -7,7 +7,12 @@ import StatsCards from "../components/Statscards";
 import RecentOrders from "../components/RecentOrders";
 
 
+// The vendor's home screen after logging in. It's mostly layout: a
+// sidebar for navigation, plus a header, stats cards, and recent orders
+// list — each of those is its own component.
 function Dashboard() {
+  // Controls whether the sidebar is open on mobile (it's always open on
+  // desktop widths — see the responsive classes inside Sidebar.jsx).
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [vendor, setVendor] = useState(null);
 

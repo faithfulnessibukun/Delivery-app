@@ -1,10 +1,15 @@
 import {useState , useEffect} from "react";
+import toast from "react-hot-toast";
 import Sidebar from "../components/Sidebar";
 import MenuHeader from "../components/MenuHeader";
 import MenuForm from "../components/MenuForm";
 import MenuTable from "../components/MenuTable";
 
+// The vendor's menu management screen: add/edit/delete menu items
+// (handled by MenuForm + MenuTable) and manage categories (handled here,
+// with a small popup/modal for adding a new one).
 function Menu() {
+  // The vendor's saved menu items, loaded from localStorage on first render.
   const [menus, setMenus] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem("menus"));
@@ -13,7 +18,9 @@ function Menu() {
       return [];
     }
   });
+  // Which menu item (if any) is currently being edited in MenuForm.
   const [editingMenu, setEditingMenu] = useState(null);
+  // Category list, with a few defaults if nothing was saved before.
   const [categories, setCategories] = useState(() => {
   const saved = JSON.parse(localStorage.getItem("categories"));
   return saved || [
@@ -25,9 +32,12 @@ function Menu() {
   ];
 });
 
+// Controls the "Add Category" popup.
 const [showCategoryModal, setShowCategoryModal] = useState(false);
 const [newCategory, setNewCategory] = useState("");
 
+  // Whenever menus or categories change, save the updated list back to
+  // localStorage so it's remembered after a page refresh.
   useEffect(() => {
     localStorage.setItem("menus", JSON.stringify(menus));
   }, [menus]);
@@ -37,13 +47,16 @@ const [newCategory, setNewCategory] = useState("");
     JSON.stringify(categories)
   );
 }, [categories]);
+
+// Removes a category — but only if no menu item is currently using it,
+// otherwise that item would be left with a category that no longer exists.
 function deleteCategory(category) {
   const used = menus.some(
     (menu) => menu.category === category
   );
 
   if (used) {
-    alert("This category is being used by a menu item.");
+    toast.error("This category is being used by a menu item.");
     return;
   }
 
@@ -51,14 +64,17 @@ function deleteCategory(category) {
     categories.filter((item) => item !== category)
   );
 }
+
+// Adds a new category from the "Add Category" popup, after checking it's
+// not empty and not already in the list.
 function saveCategory() {
   if (!newCategory.trim()) {
-    alert("Please enter a category name.");
+    toast.error("Please enter a category name.");
     return;
   }
 
   if (categories.includes(newCategory)) {
-    alert("Category already exists.");
+    toast.error("Category already exists.");
     return;
   }
 

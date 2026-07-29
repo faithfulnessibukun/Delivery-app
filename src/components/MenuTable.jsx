@@ -1,3 +1,6 @@
+// Lists every menu item in a table with Edit/Delete buttons. "Edit" hands
+// the clicked item to MenuForm.jsx via setEditingMenu (they share the same
+// `menus` list, passed down from Menu.jsx). "Delete" just removes it.
 function MenuTable({ menus , setMenus ,setEditingMenu }) {
   const handleDelete = (id) => {
   const updatedMenus = menus.filter((menu) => menu.id !== id);

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaSearch,
@@ -7,8 +7,15 @@ import {
   FaMapMarkerAlt,
   FaFire,
   FaLocationArrow,
+  FaFlask,
+  FaCircle,
+  FaBoxOpen,
+  FaShoppingBag,
 } from "react-icons/fa";
 import AdvertVideo from "../assets/Advert.mp4";
+import CustomerNav from "../components/CustomerNav";
+import MOCK_MENUS from "../data/mockMenus";
+import { useCart } from "../context/CartContext";
 
 // Cycle of accent colors from the Chop Chop palette — used to give each
 // category / restaurant ribbon a distinct, deliberate identity instead
@@ -20,6 +27,8 @@ const ACCENTS = [
   { solid: "bg-[#6B4A8A]", soft: "bg-[#EEE6F4]", text: "text-[#6B4A8A]" },
 ];
 
+
+// Returns a greeting that changes with the time of day.
 function getGreeting() {
   const hour = new Date().getHours();
   if (hour < 12) return "Good morning";
@@ -27,20 +36,76 @@ function getGreeting() {
   return "Good evening";
 }
 
+// This is the main screen customers land on after logging in.
+// It shows: a search bar, a promo video with two service buttons,
+// food categories, a list of restaurants, and a "send a package" form.
 function CustomerHome() {
+  // Which category chip is currently selected (defaults to "All").
   const [selectedCategory, setSelectedCategory] = useState("All");
+  // What the user has typed into the search box.
   const [searchTerm, setSearchTerm] = useState("");
+  // Tracks the browser's geolocation lookup so we can show a live status pill.
   const [location, setLocation] = useState({
     status: "loading", // loading | ready | denied | error
     label: "",
   });
+  // "Mock data" lets us preview the page with sample restaurants instead of
+  // whatever is actually saved in localStorage — handy for demos/testing.
+  const [useMockData, setUseMockData] = useState(
+    () => localStorage.getItem("useMockData") === "true"
+  );
+  // Fields for the "Send a Package" form further down the page.
+  const [pickupAddress, setPickupAddress] = useState("");
+  const [destinationAddress, setDestinationAddress] = useState("");
+  const [packageSize, setPackageSize] = useState("Small");
   const navigate = useNavigate();
+  // Shared cart state (item count + a function to open the cart drawer)
+  // comes from CartContext so it works the same on every page.
+  const { cartCount, openCart } = useCart();
 
+  // Refs let us scroll smoothly to the Restaurants / Send a Package
+  // sections when the buttons inside the video are clicked.
+  const restaurantsRef = useRef(null);
+  const riderRef = useRef(null);
+
+  const scrollToSection = (ref) => {
+    ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  // Mock fare estimate — base fare + a per-character stand-in for distance,
+  // plus a size multiplier. Not real distance/geocoding, just enough to
+  // demo the flow until a pricing engine is wired up.
+  const priceEstimate = useMemo(() => {
+    if (!pickupAddress.trim() || !destinationAddress.trim()) return null;
+
+    const sizeMultiplier = { Small: 1, Medium: 1.4, Large: 1.9 }[packageSize];
+    const distanceStandIn =
+      (pickupAddress.trim().length + destinationAddress.trim().length) * 15;
+    const fare = 500 + distanceStandIn * sizeMultiplier;
+
+    return Math.round(fare / 10) * 10;
+  }, [pickupAddress, destinationAddress, packageSize]);
+
+  // Who is logged in right now (saved during login). Used just for the
+  // "Good morning, <name>" greeting.
   const currentUser = JSON.parse(localStorage.getItem("currentUser")) || null;
   const firstName = currentUser?.fullName?.split(" ")[0] || "there";
 
-  const menus = JSON.parse(localStorage.getItem("menus")) || [];
+  // "menus" is the full list of individual menu items saved by vendors.
+  // Depending on the mock-data toggle, we either use that real data or
+  // the sample MOCK_MENUS list.
+  const realMenus = JSON.parse(localStorage.getItem("menus")) || [];
+  const menus = useMockData ? MOCK_MENUS : realMenus;
 
+  const toggleMockData = () => {
+    const next = !useMockData;
+    setUseMockData(next);
+    localStorage.setItem("useMockData", String(next));
+  };
+
+  // Menu items belong to restaurants, but the same restaurant can have many
+  // items. This turns the flat list of menu items into a de-duplicated list
+  // of restaurants (one card per vendorId) for the "Restaurants" section.
   const restaurants = useMemo(
     () => [
       ...new Map(
@@ -62,6 +127,8 @@ function CustomerHome() {
     [menus]
   );
 
+  // Builds the list of category chips ("All", "Pizza", "Local", ...) from
+  // whatever categories actually appear in the current menu items.
   const categories = useMemo(
     () => ["All", ...new Set(menus.map((menu) => menu.category).filter(Boolean))],
     [menus]
@@ -135,7 +202,7 @@ function CustomerHome() {
   return (
     <div className="min-h-screen bg-[#FBF6EE]">
       {/* Header */}
-      <div className="bg-[#1F1B16] text-white p-6 rounded-b-[2.5rem] shadow-lg relative overflow-hidden">
+      <div className="bg-[#1F1B16] text-white px-6 md:px-10 lg:px-16 py-6 rounded-b-[2.5rem] shadow-lg relative overflow-hidden">
         <div
           className="absolute inset-0 opacity-[0.08]"
           style={{
@@ -144,7 +211,7 @@ function CustomerHome() {
             backgroundSize: "24px 24px",
           }}
         />
-        <div className="relative flex items-center justify-between">
+        <div className="relative flex items-start justify-between gap-3">
           <div>
             <h1
               className="text-3xl font-black tracking-tight"
@@ -154,10 +221,40 @@ function CustomerHome() {
             </h1>
             <p className="mt-1 text-[#C9C2B4]">What are we chopping today?</p>
           </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Dev/demo helper: flips between real saved menus and sample data. */}
+            <button
+              onClick={toggleMockData}
+              title="Toggle sample data for testing"
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold border transition ${
+                useMockData
+                  ? "bg-[#F4B740] text-[#1F1B16] border-[#F4B740]"
+                  : "bg-white/10 text-[#C9C2B4] border-white/10 hover:bg-white/20"
+              }`}
+            >
+              <FaFlask size={11} />
+              Mock data {useMockData ? "on" : "off"}
+            </button>
+
+            {/* Opens the cart drawer (see CartDrawer.jsx). The little badge
+                only shows once there's at least one item in the cart. */}
+            <button
+              onClick={openCart}
+              className="relative bg-white/10 border border-white/10 hover:bg-white/20 rounded-full p-2.5 transition"
+            >
+              <FaShoppingBag size={16} />
+              {cartCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-[#E8491D] text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center">
+                  {cartCount}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Live location pill — the page's signature status indicator */}
-        <div className="relative mt-4 inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full pl-3 pr-4 py-2 max-w-full border border-white/10">
+        <div className="relative mt-6 ml-2 inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full pl-3 pr-4 py-2 max-w-full border border-white/10">
           <span className="relative flex h-2.5 w-2.5 shrink-0">
             {location.status === "loading" && (
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#F4B740] opacity-75" />
@@ -188,10 +285,10 @@ function CustomerHome() {
         </div>
       </div>
 
-      {/* Advert */}
-      <div className="mx-6 mt-6 mb-6 rounded-3xl overflow-hidden shadow-xl relative">
+      {/* Video hero — promo + both services embedded directly on the video */}
+      <div className="mx-6 md:mx-10 lg:mx-16 mt-6 mb-8 rounded-3xl overflow-hidden shadow-xl relative animate-[fadeIn_0.6s_ease-out]">
         <video
-          className="w-full h-64 md:h-80 object-cover"
+          className="w-full h-96 md:h-[26rem] object-cover"
           autoPlay
           muted
           loop
@@ -200,58 +297,57 @@ function CustomerHome() {
           <source src={AdvertVideo} type="video/mp4" />
         </video>
 
-        <div className="absolute inset-0 bg-gradient-to-t from-[#1F1B16]/85 via-[#1F1B16]/20 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#1F1B16]/90 via-[#1F1B16]/25 to-[#1F1B16]/40" />
 
-        <div className="absolute inset-0 flex flex-col justify-end px-8 pb-8 text-white">
-          <span className="inline-block w-fit bg-[#F4B740] text-[#1F1B16] text-xs font-black uppercase tracking-wider px-3 py-1 rounded-full mb-2">
-            Limited time
-          </span>
-          <h2
-            className="text-4xl font-black"
-            style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-          >
-            30% OFF
-          </h2>
-          <p className="mt-1 text-[#E5DFD3]">On your first order</p>
-          <button className="mt-5 bg-[#E8491D] hover:bg-[#C73A15] text-white px-8 py-3 rounded-xl font-bold w-fit transition shadow-[0_5px_0_0_#A8300F] active:shadow-none active:translate-y-1">
-            Order Now
-          </button>
-        </div>
-      </div>
+        <div className="absolute inset-0 flex flex-col justify-between px-6 py-6 md:px-8 md:py-7 text-white">
+          <div className="animate-[fadeIn_0.6s_ease-out_0.1s_both]">
+            <span className="inline-block w-fit bg-[#F4B740] text-[#1F1B16] text-xs font-black uppercase tracking-wider px-3 py-1 rounded-full mb-2">
+              Limited time
+            </span>
+            <h2
+              className="text-4xl font-black"
+              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+            >
+              30% OFF
+            </h2>
+            <p className="mt-1 text-[#E5DFD3]">On your first order</p>
+            <button className="mt-5 bg-[#E8491D] hover:bg-[#C73A15] text-white px-8 py-3 rounded-xl font-bold w-fit transition shadow-[0_5px_0_0_#A8300F] active:shadow-none active:translate-y-1">
+              Order Now
+            </button>
+          </div>
 
-      {/* Services — food ordering & delivery */}
-      <div className="px-6">
-        <h2
-          className="font-black text-xl mb-4 text-[#1F1B16]"
-          style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-        >
-          Services
-        </h2>
-        <div className="grid grid-cols-2 gap-4">
-          <button className="text-left bg-white rounded-2xl shadow p-5 hover:shadow-lg transition border-2 border-transparent hover:border-[#E8491D]">
-            <div className="w-11 h-11 rounded-xl bg-[#FCE7DD] flex items-center justify-center">
-              <FaUtensils className="text-[#E8491D]" />
-            </div>
-            <h3 className="font-bold mt-4 text-[#1F1B16]">Order Food</h3>
-            <p className="text-sm text-[#8A8378] mt-1">
-              Browse restaurants near you
-            </p>
-          </button>
+          <div className="grid grid-cols-2 gap-3 animate-[floatIn_0.7s_cubic-bezier(0.22,1,0.36,1)_0.2s_both]">
+            <button
+              onClick={() => scrollToSection(restaurantsRef)}
+              className="group text-left bg-white/15 backdrop-blur-xl rounded-2xl p-4 border border-white/25 transition-all duration-300 hover:bg-white/25 hover:-translate-y-1 hover:shadow-xl active:translate-y-0 active:scale-[0.98]"
+            >
+              <div className="w-11 h-11 rounded-xl bg-[#F4B740] flex items-center justify-center transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6">
+                <FaUtensils className="text-[#1F1B16]" />
+              </div>
+              <h3 className="font-bold mt-3">Order Food</h3>
+              <p className="text-xs text-[#E5DFD3] mt-1">
+                Browse restaurants near you
+              </p>
+            </button>
 
-          <button className="text-left bg-white rounded-2xl shadow p-5 hover:shadow-lg transition border-2 border-transparent hover:border-[#3B6255]">
-            <div className="w-11 h-11 rounded-xl bg-[#E3EAE6] flex items-center justify-center">
-              <FaMotorcycle className="text-[#3B6255]" />
-            </div>
-            <h3 className="font-bold mt-4 text-[#1F1B16]">Send a Package</h3>
-            <p className="text-sm text-[#8A8378] mt-1">
-              Fast, reliable delivery
-            </p>
-          </button>
+            <button
+              onClick={() => scrollToSection(riderRef)}
+              className="group text-left bg-white/15 backdrop-blur-xl rounded-2xl p-4 border border-white/25 transition-all duration-300 hover:bg-white/25 hover:-translate-y-1 hover:shadow-xl active:translate-y-0 active:scale-[0.98]"
+            >
+              <div className="w-11 h-11 rounded-xl bg-[#F4B740] flex items-center justify-center transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6">
+                <FaMotorcycle className="text-[#1F1B16]" />
+              </div>
+              <h3 className="font-bold mt-3">Send a Package</h3>
+              <p className="text-xs text-[#E5DFD3] mt-1">
+                Fast, reliable delivery
+              </p>
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Categories */}
-      <div className="p-6">
+      <div className="px-6 md:px-10 lg:px-16 py-6">
         <h2
           className="font-black text-xl mb-4 text-[#1F1B16]"
           style={{ fontFamily: "'Space Grotesk', sans-serif" }}
@@ -285,7 +381,7 @@ function CustomerHome() {
       </div>
 
       {/* Restaurants */}
-      <div className="px-6 pb-10">
+      <div ref={restaurantsRef} className="px-6 md:px-10 lg:px-16 pb-10 scroll-mt-6">
         <h2
           className="text-2xl font-black mb-4 text-[#1F1B16]"
           style={{ fontFamily: "'Space Grotesk', sans-serif" }}
@@ -353,6 +449,77 @@ function CustomerHome() {
           </div>
         )}
       </div>
+
+      {/* Send a Package — pickup/destination + mock fare estimate */}
+      <div ref={riderRef} className="px-6 md:px-10 lg:px-16 pb-24 scroll-mt-6">
+        <h2
+          className="text-2xl font-black mb-4 text-[#1F1B16]"
+          style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+        >
+          Send a Package
+        </h2>
+
+        <div className="bg-white rounded-3xl shadow p-6">
+          <div className="space-y-3">
+            <div className="flex items-center gap-3 bg-[#FBF6EE] rounded-2xl px-4 py-3.5">
+              <FaCircle className="text-[#3B6255] shrink-0" size={10} />
+              <input
+                type="text"
+                value={pickupAddress}
+                onChange={(e) => setPickupAddress(e.target.value)}
+                placeholder="Pickup address"
+                className="flex-1 outline-none bg-transparent text-[#1F1B16] placeholder:text-[#A8A096] font-medium"
+              />
+            </div>
+
+            <div className="flex items-center gap-3 bg-[#FBF6EE] rounded-2xl px-4 py-3.5">
+              <FaMapMarkerAlt className="text-[#E8491D] shrink-0" size={12} />
+              <input
+                type="text"
+                value={destinationAddress}
+                onChange={(e) => setDestinationAddress(e.target.value)}
+                placeholder="Destination address"
+                className="flex-1 outline-none bg-transparent text-[#1F1B16] placeholder:text-[#A8A096] font-medium"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-3 mt-4">
+            {["Small", "Medium", "Large"].map((size) => (
+              <button
+                key={size}
+                onClick={() => setPackageSize(size)}
+                className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition ${
+                  packageSize === size
+                    ? "bg-[#1F1B16] text-white shadow"
+                    : "bg-[#FBF6EE] text-[#5A5448] hover:bg-[#EDE4D3]"
+                }`}
+              >
+                {size}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-5 pt-5 border-t border-[#EDE4D3] flex items-center justify-between">
+            <div className="flex items-center gap-2 text-[#8A8378]">
+              <FaBoxOpen size={14} />
+              <span className="text-sm font-medium">Estimated fare</span>
+            </div>
+            <span className="text-2xl font-black text-[#1F1B16]">
+              {priceEstimate ? `₦${priceEstimate.toLocaleString()}` : "—"}
+            </span>
+          </div>
+
+          <button
+            disabled={!priceEstimate}
+            className="mt-5 w-full bg-[#3B6255] hover:bg-[#2E4C42] disabled:bg-[#D8CDB6] disabled:cursor-not-allowed text-white py-3 rounded-xl font-bold transition"
+          >
+            Book a Rider
+          </button>
+        </div>
+      </div>
+
+      <CustomerNav />
     </div>
   );
 }

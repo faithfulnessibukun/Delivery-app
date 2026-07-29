@@ -7,6 +7,7 @@ import Orders from "./pages/Orders";
 import CustomerHome from "./pages/CustomerHome"
 import RestaurantMenu from "./pages/RestaurantMenu"
 import Menuitemdetail from "./pages/Menuitemdetail"
+import VendorsImageUpload from "./components/VendorImageUpload";
 
 
 function App() {
@@ -23,6 +24,7 @@ function App() {
       <Route path="/menuitemdetail" element={<Menuitemdetail />} />
       <Route path="/restaurant/:vendorId/menu/:itemId" element={<Menuitemdetail />} />
       <Route path="/restaurantmenu/:vendorId/menu/:itemId" element={<Menuitemdetail />} />
+      <Route path="/VendorsImageUpload" element={<VendorsImageUpload />} />
     </Routes>
   );
 }

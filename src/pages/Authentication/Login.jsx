@@ -117,7 +117,7 @@ function Login() {
             className="text-4xl font-black text-[#FBF6EE] mt-5 tracking-tight"
             style={{ fontFamily: "'Space Grotesk', sans-serif" }}
           >
-            Chop<span className="text-[#F4B740]">Chop</span>
+            NEW<span className="text-[#F4B740]">AGE</span>
           </h1>
           <p className="text-[#C9C2B4] text-sm mt-2 text-center">
             {isLogin

@@ -1,10 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect,useRef } from "react";
 import { FaBars, FaStore } from "react-icons/fa";
 
 import Sidebar from "../components/Sidebar";
 import DashboardHeader from "../components/DashboardHeader";
 import StatsCards from "../components/Statscards";
 import RecentOrders from "../components/RecentOrders";
+
+import toast from "react-hot-toast";
+
 
 
 // The vendor's home screen after logging in. It's mostly layout: a
@@ -15,6 +18,7 @@ function Dashboard() {
   // desktop widths — see the responsive classes inside Sidebar.jsx).
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [vendor, setVendor] = useState(null);
+  const lastOrderCount = useRef(0);
 
   // Fetch vendor's registered restaurant name on page load
   useEffect(() => {
@@ -26,6 +30,40 @@ function Dashboard() {
       setVendor(currentUser);
     }
   }, []);
+
+  useEffect(() => {
+  if (!vendor) return;
+
+  const checkOrders = () => {
+    const orders =
+      JSON.parse(localStorage.getItem("orders")) || [];
+
+    const vendorOrders = orders.filter(
+      (order) =>
+        order.restaurantName === vendor.restaurantName
+    );
+
+    if (
+      vendorOrders.length > lastOrderCount.current &&
+      lastOrderCount.current !== 0
+    ) {
+      const newestOrder = vendorOrders[0];
+
+      toast.success(
+        `🔔 New order from ${newestOrder.customerName}`
+      );
+    }
+
+    lastOrderCount.current = vendorOrders.length;
+  };
+
+  checkOrders();
+
+  const interval = setInterval(checkOrders, 1000);
+
+  return () => clearInterval(interval);
+
+}, [vendor]);
 
   return (
     <div className="flex min-h-screen bg-gray-100">

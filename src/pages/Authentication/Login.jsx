@@ -48,11 +48,11 @@ function Login() {
   }, []);
 
   // If someone is already logged in, skip the login screen entirely.
-  useEffect(() => {
-    const user = JSON.parse(localStorage.getItem("currentUser"));
-    if (!user) return;
-    navigate(user.role === "vendor" ? "/dashboard" : "/customer-home");
-  }, [navigate]);
+  // useEffect(() => {
+  //   const user = JSON.parse(localStorage.getItem("currentUser"));
+  //   if (!user) return;
+  //   navigate(user.role === "vendor" ? "/dashboard" : "/customer-home");
+  // }, [navigate]);
 
   // Checks the typed email/password against every registered user in
   // localStorage's "users" list. If one matches, save it as "currentUser"

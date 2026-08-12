@@ -50,6 +50,7 @@ function CartDrawer() {
       status: "Placed",
       placedAt: Date.now(),
       customerName: currentUser?.fullName || "Guest",
+    restaurantName: cart[0].restaurantName,
     };
 
     localStorage.setItem("orders", JSON.stringify([order, ...orders]));

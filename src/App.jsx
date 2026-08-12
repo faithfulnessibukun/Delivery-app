@@ -14,6 +14,7 @@ import Account from "./pages/Account";
 import NotFound from "./pages/NotFound";
 import { CartProvider } from "./context/CartContext";
 import CartDrawer from "./components/CartDrawer";
+import VendorOrders from "./pages/VendorOrders";
 
 // The root component. It sets up:
 //   - CartProvider: shares cart state across every page (see CartContext.jsx)
@@ -39,6 +40,7 @@ function App() {
         <Route path="/account" element={<Account />} />
         {/* Catches any URL that didn't match a route above. */}
         <Route path="*" element={<NotFound />} />
+        <Route path="/Vendor-Orders" element={<VendorOrders/>} />
       </Routes>
     </CartProvider>
   );

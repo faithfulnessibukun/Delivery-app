@@ -1,10 +1,16 @@
-import { NavLink } from "react-router-dom";
-import { FaTimes } from "react-icons/fa";
+import { NavLink,useNavigate } from "react-router-dom";
+import { FaTimes,FaSignOutAlt } from "react-icons/fa";
 
 // The vendor-side navigation sidebar (Dashboard, Menu, Orders). On desktop
 // it's always visible; on mobile it slides in/out and `sidebarOpen` +
 // `setSidebarOpen` (passed down from the parent page) control that.
 function Sidebar({ sidebarOpen, setSidebarOpen }) {
+  const navigate = useNavigate();
+
+const handleLogout = () => {
+  localStorage.removeItem("currentUser");
+  navigate("/");
+};
   return (
     <>
       {/* Dark overlay behind the sidebar on mobile — tapping it closes
@@ -74,7 +80,7 @@ function Sidebar({ sidebarOpen, setSidebarOpen }) {
 
           <li>
             <NavLink
-              to="/orders"
+              to="/vendor-orders"
               onClick={() => setSidebarOpen(false)}
               className={({ isActive }) =>
                 `block p-2 rounded hover:bg-gray-800 ${
@@ -86,10 +92,15 @@ function Sidebar({ sidebarOpen, setSidebarOpen }) {
             </NavLink>
           </li>
 
-          <li>
-            
-            
-          </li>
+          <li className="pt-6">
+  <button
+    onClick={handleLogout}
+    className="w-full text-left p-2 rounded hover:bg-red-600 text-red-400 hover:text-white transition"
+  >
+    <FaSignOutAlt className="inline mr-2" />
+    Logout
+  </button>
+</li>
         </ul>
       </aside>
     </>

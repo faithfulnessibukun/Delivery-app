@@ -1,7 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import LiveDeliveryMap from "../components/LiveDeliveryMap";
-import RiderSidebar from "../components/RiderSidebar";
 import {
   FaMotorcycle,
   FaMapMarkerAlt,
@@ -29,7 +28,7 @@ const riderIcon = new L.Icon({
 
 function Rider() {
   const navigate = useNavigate();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  
   const handleLogout = () => {
   localStorage.removeItem("currentUser");
 
@@ -270,20 +269,9 @@ if (status === "Delivered") {
 
   return (
     <div className="min-h-screen bg-gray-100">
-       <RiderSidebar
-      sidebarOpen={sidebarOpen}
-      setSidebarOpen={setSidebarOpen}
-    />
-
-        <button
-  onClick={() => setSidebarOpen(true)}
-  className="md:hidden bg-gray-900 text-white p-3 rounded-xl mb-4"
->
-  ☰
-</button>
 
       {/* Header */}
-      <div className="bg-[#1F1B16] text-white px-6 py-4 shadow-lg md:ml-64">
+      <div className="bg-[#1F1B16] text-white px-6 py-4 shadow-lg">
         <div className="w-full">
 
           <div className="flex items-center justify-between gap-4">
@@ -321,7 +309,7 @@ if (status === "Delivered") {
         </div>
       </div>
 
-      <main className="md:ml-64 w-auto min-h-screen p-4 md:p-6">
+      <main className="min-h-screen w-auto p-4 pt-20 md:p-6 md:pt-6">
                 {/* Customer Location Map */}
         {myDeliveries.length > 0 &&
           myDeliveries[0].customerLatitude &&

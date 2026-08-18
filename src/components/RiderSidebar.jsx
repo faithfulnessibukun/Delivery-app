@@ -7,6 +7,7 @@ import {
   FaTachometerAlt,
   FaUtensils,
   FaCheckCircle,
+  FaMotorcycle,
 } from "react-icons/fa";
 
 function RiderSidebar({ sidebarOpen, setSidebarOpen }) {
@@ -17,138 +18,170 @@ function RiderSidebar({ sidebarOpen, setSidebarOpen }) {
     navigate("/");
   };
 
+  const closeSidebar = () => {
+    setSidebarOpen(false);
+  };
+
   return (
     <>
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-40 md:hidden"
-          onClick={() => setSidebarOpen(false)}
+          onClick={closeSidebar}
         />
       )}
 
       {/* Sidebar */}
       <aside
         className={`
-          fixed top-0 left-0 h-screen w-64
-          bg-gray-900 text-white p-6
-          transform transition-transform duration-300 z-50
-          ${
-            sidebarOpen
-              ? "translate-x-0"
-              : "-translate-x-full md:translate-x-0"
-          }
+          fixed top-0 left-0 z-50
+          h-screen w-64
+          bg-[#1F1B16] text-white
+          shadow-2xl
+          transform transition-transform duration-300 ease-in-out
+          ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
         `}
       >
-        {/* Header */}
-        <div className="flex justify-between items-center mb-8">
-          <h2 className="text-2xl font-bold">
-            Rider Panel
-          </h2>
+        {/* Sidebar Header */}
+        <div className="flex items-center justify-between px-6 py-6 border-b border-white/10">
+          
+          <div className="flex items-center gap-3">
+            <div className="bg-[#F4B740] text-[#1F1B16] p-2.5 rounded-xl">
+              <FaMotorcycle size={20} />
+            </div>
+
+            <div>
+              <h2 className="text-xl font-black">
+                Rider Panel
+              </h2>
+
+              <p className="text-xs text-gray-400">
+                Delivery Center
+              </p>
+            </div>
+          </div>
 
           {/* Close button - mobile only */}
           <button
-            className="md:hidden"
-            onClick={() => setSidebarOpen(false)}
+            onClick={closeSidebar}
+            className="md:hidden text-gray-300 hover:text-white hover:bg-white/10 p-2 rounded-lg transition"
           >
-            <FaTimes size={22} />
+            <FaTimes size={20} />
           </button>
         </div>
 
-        <ul className="space-y-3">
+        {/* Navigation */}
+        <nav className="px-4 py-6">
+          <p className="text-xs font-bold uppercase tracking-wider text-gray-500 px-3 mb-3">
+            Main Menu
+          </p>
 
-          {/* Dashboard */}
-          <li>
-            <NavLink
-              to="/rider-dashboard"
-              onClick={() => setSidebarOpen(false)}
-              className={({ isActive }) =>
-                `flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition ${
-                  isActive ? "bg-gray-800" : ""
-                }`
-              }
-            >
-              <FaTachometerAlt />
-              Dashboard
-            </NavLink>
-          </li>
+          <ul className="space-y-2">
 
-          {/* Courier Orders */}
-          <li>
-            <NavLink
-              to="/rider-courier-orders"
-              onClick={() => setSidebarOpen(false)}
-              className={({ isActive }) =>
-                `flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition ${
-                  isActive ? "bg-gray-800" : ""
-                }`
-              }
-            >
-              <FaBoxOpen />
-              Courier Orders
-            </NavLink>
-          </li>
+            {/* Dashboard */}
+            <li>
+              <NavLink
+                to="/rider-dashboard"
+                onClick={closeSidebar}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition ${
+                    isActive
+                      ? "bg-[#F4B740] text-[#1F1B16] shadow-md"
+                      : "text-gray-300 hover:bg-white/10 hover:text-white"
+                  }`
+                }
+              >
+                <FaTachometerAlt />
+                <span>Dashboard</span>
+              </NavLink>
+            </li>
 
-          {/* Active Courier Delivery */}
-          <li>
-            <NavLink
-              to="/rider-courier-delivery"
-              onClick={() => setSidebarOpen(false)}
-              className={({ isActive }) =>
-                `flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition ${
-                  isActive ? "bg-gray-800" : ""
-                }`
-              }
-            >
-              <FaMapMarkedAlt />
-              Active Courier Delivery
-            </NavLink>
-          </li>
+            {/* Courier Orders */}
+            <li>
+              <NavLink
+                to="/rider-courier-orders"
+                onClick={closeSidebar}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition ${
+                    isActive
+                      ? "bg-[#F4B740] text-[#1F1B16] shadow-md"
+                      : "text-gray-300 hover:bg-white/10 hover:text-white"
+                  }`
+                }
+              >
+                <FaBoxOpen />
+                <span>Courier Orders</span>
+              </NavLink>
+            </li>
 
-          {/* Active Food Delivery */}
-          <li>
-            <NavLink
-              to="/rider-food-delivery"
-              onClick={() => setSidebarOpen(false)}
-              className={({ isActive }) =>
-                `flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition ${
-                  isActive ? "bg-gray-800" : ""
-                }`
-              }
-            >
-              <FaUtensils />
-              Active Food Delivery
-            </NavLink>
-          </li>
+            {/* Active Courier Delivery */}
+            <li>
+              <NavLink
+                to="/rider-courier-delivery"
+                onClick={closeSidebar}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition ${
+                    isActive
+                      ? "bg-[#F4B740] text-[#1F1B16] shadow-md"
+                      : "text-gray-300 hover:bg-white/10 hover:text-white"
+                  }`
+                }
+              >
+                <FaMapMarkedAlt />
+                <span>Active Courier Delivery</span>
+              </NavLink>
+            </li>
 
-          {/* Completed Deliveries */}
-          <li>
-            <NavLink
-              to="/rider-completed-deliveries"
-              onClick={() => setSidebarOpen(false)}
-              className={({ isActive }) =>
-                `flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition ${
-                  isActive ? "bg-gray-800" : ""
-                }`
-              }
-            >
-              <FaCheckCircle />
-              Completed Deliveries
-            </NavLink>
-          </li>
+            {/* Active Food Delivery */}
+            <li>
+              <NavLink
+                to="/rider-food-delivery"
+                onClick={closeSidebar}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition ${
+                    isActive
+                      ? "bg-[#F4B740] text-[#1F1B16] shadow-md"
+                      : "text-gray-300 hover:bg-white/10 hover:text-white"
+                  }`
+                }
+              >
+                <FaUtensils />
+                <span>Active Food Delivery</span>
+              </NavLink>
+            </li>
+
+            {/* Completed Deliveries */}
+            <li>
+              <NavLink
+                to="/rider-completed-deliveries"
+                onClick={closeSidebar}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition ${
+                    isActive
+                      ? "bg-[#F4B740] text-[#1F1B16] shadow-md"
+                      : "text-gray-300 hover:bg-white/10 hover:text-white"
+                  }`
+                }
+              >
+                <FaCheckCircle />
+                <span>Completed Deliveries</span>
+              </NavLink>
+            </li>
+
+          </ul>
 
           {/* Logout */}
-          <li className="pt-6">
+          <div className="mt-8 pt-6 border-t border-white/10">
             <button
               onClick={handleLogout}
-              className="w-full flex items-center gap-3 text-left p-3 rounded-lg hover:bg-red-600 text-red-400 hover:text-white transition"
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-400 font-semibold hover:bg-red-600 hover:text-white transition"
             >
               <FaSignOutAlt />
-              Logout
+              <span>Logout</span>
             </button>
-          </li>
-
-        </ul>
+          </div>
+        </nav>
       </aside>
     </>
   );

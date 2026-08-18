@@ -48,6 +48,8 @@ function CustomerHome() {
   const [location, setLocation] = useState({
     status: "loading", // loading | ready | denied | error
     label: "",
+    latitude: null,
+    longitude: null,
   });
   // "Mock data" lets us preview the page with sample restaurants instead of
   // whatever is actually saved in localStorage — handy for demos/testing.
@@ -89,19 +91,139 @@ function CustomerHome() {
   // Who is logged in right now (saved during login). Used just for the
   // "Good morning, <name>" greeting.
   const currentUser = JSON.parse(localStorage.getItem("currentUser")) || null;
+  const customerLocation = currentUser?.id
+  ? JSON.parse(
+      localStorage.getItem(
+        `customerLocation_${currentUser.id}`
+      )
+    ) || null
+  : null;
   const firstName = currentUser?.fullName?.split(" ")[0] || "there";
 
   // "menus" is the full list of individual menu items saved by vendors.
   // Depending on the mock-data toggle, we either use that real data or
   // the sample MOCK_MENUS list.
-  const realMenus = JSON.parse(localStorage.getItem("menus")) || [];
-  const menus = useMockData ? MOCK_MENUS : realMenus;
+  const [menus, setMenus] = useState(() =>
+    useMockData ? MOCK_MENUS : JSON.parse(localStorage.getItem("menus")) || []
+  );
+
+  // Keep `menus` in sync when toggling mock data or when another page
+  // updates localStorage (Menu.jsx dispatches a `menusUpdated` event).
+  useEffect(() => {
+    setMenus(useMockData ? MOCK_MENUS : JSON.parse(localStorage.getItem("menus")) || []);
+  }, [useMockData]);
+
+  useEffect(() => {
+    const handler = () => {
+      setMenus(useMockData ? MOCK_MENUS : JSON.parse(localStorage.getItem("menus")) || []);
+    };
+
+    window.addEventListener("menusUpdated", handler);
+    return () => window.removeEventListener("menusUpdated", handler);
+  }, [useMockData]);
 
   const toggleMockData = () => {
     const next = !useMockData;
     setUseMockData(next);
     localStorage.setItem("useMockData", String(next));
   };
+  const handleBookRider = () => {
+  if (!pickupAddress.trim() || !destinationAddress.trim()) {
+    alert("Please enter pickup and destination addresses.");
+    return;
+  }
+
+  const currentUser =
+    JSON.parse(localStorage.getItem("currentUser")) || null;
+
+  const courierOrders =
+    JSON.parse(localStorage.getItem("courierOrders")) || [];
+
+  // Get customer's current GPS location
+  if (!navigator.geolocation) {
+    alert("Your browser does not support GPS location.");
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      const customerLatitude = position.coords.latitude;
+      const customerLongitude = position.coords.longitude;
+
+      const courierOrder = {
+        id: Date.now(),
+
+        // Customer information
+        customerId: currentUser?.id || null,
+        customerName: currentUser?.fullName || "Guest",
+        customerPhone: currentUser?.phone || "N/A",
+
+        // Package locations
+        pickupAddress,
+        destinationAddress,
+
+        // Customer GPS location
+        customerLatitude,
+        customerLongitude,
+
+        // Package information
+        packageSize,
+
+        // Delivery fee
+        deliveryFee: priceEstimate,
+
+        // Courier status
+        status: "Waiting for Rider",
+
+        // Rider information
+        riderId: null,
+        riderName: null,
+
+        // Rider GPS location
+        riderLatitude: null,
+        riderLongitude: null,
+
+        // Time booked
+        createdAt: Date.now(),
+      };
+
+      localStorage.setItem(
+        "courierOrders",
+        JSON.stringify([
+          courierOrder,
+          ...courierOrders,
+        ])
+      );
+
+      // Tell other pages that a new courier order exists
+      window.dispatchEvent(
+        new Event("courierOrdersUpdated")
+      );
+
+      alert("Rider booked successfully!");
+
+      // Clear form
+      setPickupAddress("");
+      setDestinationAddress("");
+      setPackageSize("Small");
+    },
+
+    () => {
+      alert(
+        "Please allow location access so we can locate you for delivery."
+      );
+    },
+
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0,
+    }
+  );
+};
+
+
+
 
   // Menu items belong to restaurants, but the same restaurant can have many
   // items. This turns the flat list of menu items into a de-duplicated list
@@ -165,39 +287,122 @@ function CustomerHome() {
   // a human readable label. Falls back gracefully if the user declines
   // or the browser has no geolocation support.
   useEffect(() => {
-    if (!("geolocation" in navigator)) {
-      setLocation({ status: "error", label: "Location unavailable" });
-      return;
-    }
+  if (!("geolocation" in navigator)) {
+    setLocation({
+      status: "error",
+      label: "Location unavailable",
+      latitude: null,
+      longitude: null,
+    });
+    return;
+  }
 
-    navigator.geolocation.getCurrentPosition(
-      async ({ coords }) => {
-        try {
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${coords.latitude}&lon=${coords.longitude}`
+  const currentUser =
+    JSON.parse(localStorage.getItem("currentUser")) || null;
+
+  // Watch the customer's location continuously
+  const watchId = navigator.geolocation.watchPosition(
+    async ({ coords }) => {
+      const latitude = coords.latitude;
+      const longitude = coords.longitude;
+
+      try {
+        const res = await fetch(
+  `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
+);
+
+        const data = await res.json();
+
+        const area =
+          data?.address?.suburb ||
+          data?.address?.neighbourhood ||
+          data?.address?.city_district ||
+          data?.address?.city ||
+          data?.address?.town ||
+          "";
+
+        const city =
+          data?.address?.city ||
+          data?.address?.state ||
+          "";
+
+        const label =
+          [area, city].filter(Boolean).join(", ") ||
+          data?.display_name ||
+          "Current location";
+
+        setLocation({
+          status: "ready",
+          label,
+          latitude,
+          longitude,
+        });
+
+        // Save the customer's live GPS location
+        // so the order/rider can use it later.
+        if (currentUser?.id) {
+          const customerLocation = {
+            latitude,
+            longitude,
+            label,
+            updatedAt: Date.now(),
+          };
+
+          localStorage.setItem(
+            `customerLocation_${currentUser.id}`,
+            JSON.stringify(customerLocation)
           );
-          const data = await res.json();
-          const area =
-            data?.address?.suburb ||
-            data?.address?.neighbourhood ||
-            data?.address?.city_district ||
-            data?.address?.city ||
-            data?.address?.town ||
-            "";
-          const city = data?.address?.city || data?.address?.state || "";
-          const label = [area, city].filter(Boolean).join(", ") || data?.display_name;
-          setLocation({ status: "ready", label: label || "Current location" });
-        } catch {
-          setLocation({
-            status: "ready",
-            label: `${coords.latitude.toFixed(2)}, ${coords.longitude.toFixed(2)}`,
-          });
+
+          // Tell other parts of the app that the location changed
+          window.dispatchEvent(
+            new Event("customerLocationUpdated")
+          );
         }
-      },
-      () => setLocation({ status: "denied", label: "Turn on location access" }),
-      { enableHighAccuracy: false, timeout: 8000 }
-    );
-  }, []);
+      } catch {
+        const label = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+
+        setLocation({
+          status: "ready",
+          label,
+          latitude,
+          longitude,
+        });
+
+        if (currentUser?.id) {
+          localStorage.setItem(
+            `customerLocation_${currentUser.id}`,
+            JSON.stringify({
+              latitude,
+              longitude,
+              label,
+              updatedAt: Date.now(),
+            })
+          );
+        }
+      }
+    },
+
+    () => {
+      setLocation({
+        status: "denied",
+        label: "Turn on location access",
+        latitude: null,
+        longitude: null,
+      });
+    },
+
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 5000,
+    }
+  );
+
+  // Stop watching location when the customer leaves the page
+  return () => {
+    navigator.geolocation.clearWatch(watchId);
+  };
+}, []);
 
   return (
     <div className="min-h-screen bg-[#FBF6EE]">
@@ -411,13 +616,7 @@ function CustomerHome() {
                       alt={restaurant.restaurantName}
                       className="w-full h-48 object-cover"
                     />
-                    {restaurant.category && (
-                      <span
-                        className={`absolute top-3 left-3 ${accent.solid} text-white text-xs font-bold px-3 py-1 rounded-full`}
-                      >
-                        {restaurant.category}
-                      </span>
-                    )}
+                    
                   </div>
 
                   <div className="p-4">
@@ -437,7 +636,11 @@ function CustomerHome() {
                     </p>
 
                     <button
-                      onClick={() => navigate(`/restaurant/${restaurant.vendorId}`)}
+                      onClick={() =>
+                        navigate(`/restaurant/${restaurant.vendorId}`, {
+                          state: { restaurantName: restaurant.restaurantName },
+                        })
+                      }
                       className="mt-4 w-full bg-[#E8491D] text-white py-2.5 rounded-xl hover:bg-[#C73A15] transition font-bold"
                     >
                       View Menu
@@ -511,6 +714,7 @@ function CustomerHome() {
           </div>
 
           <button
+          onClick={handleBookRider}
             disabled={!priceEstimate}
             className="mt-5 w-full bg-[#3B6255] hover:bg-[#2E4C42] disabled:bg-[#D8CDB6] disabled:cursor-not-allowed text-white py-3 rounded-xl font-bold transition"
           >

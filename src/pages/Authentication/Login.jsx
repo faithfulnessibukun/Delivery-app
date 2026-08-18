@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { FaUser, FaStore, FaPepperHot, FaEye, FaEyeSlash } from "react-icons/fa";
+import { FaUser, FaStore,FaMotorcycle, FaPepperHot, FaEye, FaEyeSlash } from "react-icons/fa";
 
 // A ready-made vendor account so moyo@gmail.com / admin123 always works
 // for logging in without having to register first.
@@ -77,10 +77,12 @@ function Login() {
     toast.success("Login successful!");
 
     if (user.role === "vendor") {
-      navigate("/dashboard");
-    } else {
-      navigate("/customer-home");
-    }
+  navigate("/dashboard");
+} else if (user.role === "rider") {
+  navigate("/rider-dashboard");
+} else {
+  navigate("/customer-home");
+}
   };
 
   // Switches between the Login form and the Register form.
@@ -261,7 +263,7 @@ function Login() {
               {/* Role selector */}
               <div>
                 <label className={labelClasses}>Register As</label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   <button
                     type="button"
                     onClick={() => setRole("customer")}
@@ -287,6 +289,18 @@ function Login() {
                     <FaStore />
                     <span className="text-sm font-bold">Vendor</span>
                   </button>
+                  <button
+  type="button"
+  onClick={() => setRole("rider")}
+  className={`flex flex-col items-center gap-2 rounded-2xl border-2 py-3.5 transition ${
+    role === "rider"
+      ? "border-[#F4B740] bg-[#FCF0D6] text-[#9C7311]"
+      : "border-[#EDE4D3] text-[#A8A096] hover:border-[#D8CDB6]"
+  }`}
+>
+  <FaMotorcycle />
+  <span className="text-sm font-bold">Rider</span>
+</button>
                 </div>
               </div>
 

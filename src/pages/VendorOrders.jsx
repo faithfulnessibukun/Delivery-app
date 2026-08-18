@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 import {
   FaBars,
   FaStore,
@@ -16,46 +17,62 @@ function VendorOrders() {
   const [orders, setOrders] = useState([]);
 
   useEffect(() => {
-    const currentVendor = JSON.parse(
-      localStorage.getItem("currentUser")
-    );
+  const currentVendor = JSON.parse(
+    localStorage.getItem("currentUser")
+  );
 
-    setVendor(currentVendor);
+  setVendor(currentVendor);
 
-    const savedOrders =
-      JSON.parse(localStorage.getItem("orders")) || [];
+  const savedOrders =
+    JSON.parse(localStorage.getItem("orders")) || [];
 
-    const vendorOrders = savedOrders.filter(
-      (order) => order.restaurantName=== currentVendor?.restaurantName
-    );
+  const vendorOrders = savedOrders.filter(
+    (order) =>
+      String(order.vendorId) === String(currentVendor?.id)
+  );
 
-    setOrders(vendorOrders);
-  }, []);
+  setOrders(vendorOrders);
+}, []);
 
   const updateStatus = (id, status) => {
-    const allOrders =
-      JSON.parse(localStorage.getItem("orders")) || [];
+  const allOrders =
+    JSON.parse(localStorage.getItem("orders")) || [];
 
-    const updatedOrders = allOrders.map((order) =>
-      order.id === id
-        ? {
-            ...order,
-            status,
-          }
-        : order
-    );
+  const updatedOrders = allOrders.map((order) =>
+    order.id === id
+      ? {
+          ...order,
+          status,
+        }
+      : order
+  );
 
-    localStorage.setItem(
-      "orders",
-      JSON.stringify(updatedOrders)
-    );
+  // Save the updated orders so the rider can see them too.
+  localStorage.setItem(
+    "orders",
+    JSON.stringify(updatedOrders)
+  );
 
-    setOrders(
-      updatedOrders.filter(
-        (order) => order.restaurantName === vendor?.restaurantName
-      )
+  // Update the vendor's order list immediately.
+  setOrders(
+    updatedOrders.filter(
+      (order) =>
+        order.restaurantName === vendor?.restaurantName
+    )
+  );
+
+  // Tell other pages/components that the orders have changed.
+  window.dispatchEvent(new Event("ordersUpdated"));
+
+  // Give the vendor feedback.
+  if (status === "Ready") {
+    toast.success(
+      "Order is ready! It is now available for riders."
     );
-  };
+  } else {
+    toast.success(`Order status changed to ${status}`);
+  }
+};
 
   return (
     <div className="flex min-h-screen bg-gray-100">

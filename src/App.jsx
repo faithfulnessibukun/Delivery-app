@@ -15,6 +15,12 @@ import NotFound from "./pages/NotFound";
 import { CartProvider } from "./context/CartContext";
 import CartDrawer from "./components/CartDrawer";
 import VendorOrders from "./pages/VendorOrders";
+import RiderCourierOrders from "./pages/RiderCourierOrders";
+import RiderDashboard from "./pages/RiderDashboard";
+import RiderCourierDelivery from "./pages/RiderCourierDelivery";
+import RiderLayout from "./components/RiderLayout";
+
+
 
 // The root component. It sets up:
 //   - CartProvider: shares cart state across every page (see CartContext.jsx)
@@ -30,6 +36,8 @@ function App() {
       <Routes>
         <Route path="/" element={<Login />} />
         <Route path="/dashboard" element={<Dashboard />} />
+        
+        
         <Route path="/menu" element={<Menu />} />
         <Route path="/orders" element={<Orders />} />
         <Route path="/customer-home" element={<CustomerHome />} />
@@ -41,6 +49,23 @@ function App() {
         {/* Catches any URL that didn't match a route above. */}
         <Route path="*" element={<NotFound />} />
         <Route path="/Vendor-Orders" element={<VendorOrders/>} />
+        
+        <Route element={<RiderLayout />}>
+  <Route
+    path="/rider-dashboard"
+    element={<RiderDashboard />}
+  />
+
+  <Route
+    path="/rider-courier-orders"
+    element={<RiderCourierOrders />}
+  />
+
+  <Route
+    path="/rider-courier-delivery"
+    element={<RiderCourierDelivery />}
+  />
+</Route>
       </Routes>
     </CartProvider>
   );

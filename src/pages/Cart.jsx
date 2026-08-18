@@ -6,6 +6,7 @@ import { useCart } from "../context/CartContext";
 // This route exists only so a direct link to /cart still does something
 // sensible: land on the home feed with the drawer open.
 function Cart() {
+  
   const navigate = useNavigate();
   const { openCart } = useCart();
 

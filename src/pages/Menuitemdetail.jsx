@@ -111,9 +111,9 @@ function MenuItemDetail() {
       </div>
 
       <div className="bg-white rounded-t-[2rem] -mt-6 relative px-6 pt-6 pb-8 shadow-sm">
-        {item.category && (
+        {(item.foodName || item.name || item.itemName)&& (
           <span className="inline-block bg-[#FCF0D6] text-[#9C7311] text-xs font-bold px-3 py-1 rounded-full mb-3 uppercase tracking-wide">
-            {item.category}
+             {item.foodName || item.name || item.itemName}
           </span>
         )}
 

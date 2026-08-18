@@ -38,27 +38,84 @@ function CartDrawer() {
   // entry in localStorage's "orders" list, then empty the cart. There's
   // no payment step — this is a demo/prototype flow.
   const handlePlaceOrder = () => {
-    if (cart.length === 0) return;
+  if (cart.length === 0) return;
 
-    const orders = getStoredArray("orders");
-    const currentUser = JSON.parse(localStorage.getItem("currentUser")) || null;
+  const orders = getStoredArray("orders");
+  const currentUser = JSON.parse(localStorage.getItem("currentUser")) || null;
 
-    const order = {
-      id: Date.now(),
-      items: cart,
-      total,
-      status: "Placed",
-      placedAt: Date.now(),
-      customerName: currentUser?.fullName || "Guest",
-    restaurantName: cart[0].restaurantName,
-    };
+  // Get the customer's current GPS location
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      const customerLatitude = position.coords.latitude;
+      const customerLongitude = position.coords.longitude;
 
-    localStorage.setItem("orders", JSON.stringify([order, ...orders]));
-    updateCart([]);
-    toast.success("Order placed!");
-    closeCart();
-    navigate("/orders");
-  };
+      const order = {
+  id: Date.now(),
+
+  // The vendor who owns the food in this order
+  vendorId: cart[0].vendorId,
+
+  // Restaurant name
+  restaurantName: cart[0].restaurantName,
+
+  pickupAddress: cart[0].restaurantAddress || " ",
+
+  // Customer who placed the order
+  customerId: currentUser?.id || null,
+  customerName: currentUser?.fullName || "Guest",
+  customerphone:currentUser?.phone || "N/A",
+  
+
+  // All food items ordered
+  items: cart,
+
+  // Total price
+  total,
+
+  // Order status
+  status: "Placed",
+
+  // Time order was placed
+  placedAt: Date.now(),
+
+    // Rider information
+  riderId: null,
+  riderName: null,
+
+  // Rider earnings for this delivery
+  riderEarnings: 1500,
+   // Customer's live GPS location
+        customerLatitude,
+        customerLongitude,
+
+// Rider tracking information
+riderLatitude: null,
+riderLongitude: null,
+deliveryStatus: "Waiting for rider",
+};
+localStorage.setItem(
+        "orders",
+        JSON.stringify([order, ...orders])
+      );
+
+      updateCart([]);
+      toast.success("Order placed!");
+      closeCart();
+      navigate("/orders");
+    },
+    () => {
+      toast.error(
+        "Please allow location access so we can deliver your order."
+      );
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0,
+    }
+  );
+};
+    
 
   return (
     <>
@@ -87,6 +144,7 @@ function CartDrawer() {
           >
             Your Cart
           </h2>
+          
           <button
             onClick={closeCart}
             className="bg-white/10 rounded-full p-2.5 hover:bg-white/20 transition"
@@ -110,7 +168,7 @@ function CartDrawer() {
                 >
                   <div className="flex-1 min-w-0">
                     <h3 className="font-bold text-[#1F1B16] truncate">
-                      {item.name}
+                      {item.name || item.itemName} 
                     </h3>
                     <p className="text-xs text-[#8A8378] truncate">
                       {item.restaurantName}

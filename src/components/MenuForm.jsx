@@ -53,9 +53,16 @@ if (!currentUser) {
           ? {
     ...menu,
     foodName,
+    name: foodName,
+    itemName: foodName,
     category,
     price,
     image,
+    itemImage: image,
+      // Keep this menu item connected to the vendor
+    vendorId: menu.vendorId || currentUser.id,
+    restaurantName: menu.restaurantName || currentUser.restaurantName,
+    restaurantAddress: menu.restaurantAddress || currentUser.restaurantAddress,
   }
           : menu
       );
@@ -78,12 +85,15 @@ if (!currentUser) {
   restaurantAddress: currentUser.restaurantAddress,
 
   foodName,
+  name: foodName,
+  itemName: foodName,
 
   category,
 
   price,
 
   image,
+  itemImage: image,
 };
 
       setMenus([...menus, newMenu]);

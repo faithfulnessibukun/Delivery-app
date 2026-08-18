@@ -40,6 +40,11 @@ const [newCategory, setNewCategory] = useState("");
   // localStorage so it's remembered after a page refresh.
   useEffect(() => {
     localStorage.setItem("menus", JSON.stringify(menus));
+    // Notify other parts of the app (CustomerHome) that menus changed so
+    // they can refresh without a full page reload.
+    try {
+      window.dispatchEvent(new Event("menusUpdated"));
+    } catch {}
   }, [menus]);
   useEffect(() => {
   localStorage.setItem(

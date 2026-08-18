@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
+import { CURRENT_USER_KEYS } from "../utils/storage";
 
 // A form for adding a new menu item, that also doubles as the edit form.
 // Which mode it's in depends on `editingMenu`: null means "adding new",
@@ -37,11 +38,23 @@ const [category, setCategory] = useState("");
       return;
     }
     const currentUser = JSON.parse(
-  localStorage.getItem("currentUser")
+  localStorage.getItem(CURRENT_USER_KEYS.vendor)
 );
 
 if (!currentUser) {
   toast.error("Please log in first.");
+  return;
+}
+
+if (currentUser.role !== "vendor") {
+  toast.error("Only vendor accounts can add menu items.");
+  return;
+}
+
+if (!currentUser.restaurantName) {
+  toast.error(
+    "Your vendor account has no restaurant name on file, so this item won't be visible to customers. Please re-register with a restaurant name."
+  );
   return;
 }
 

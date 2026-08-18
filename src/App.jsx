@@ -46,9 +46,9 @@ function App() {
         <Route path="/vendor-image-upload" element={<VendorsImageUpload />} />
         <Route path="/cart" element={<Cart />} />
         <Route path="/account" element={<Account />} />
+        <Route path="/vendor-orders" element={<VendorOrders/>} />
         {/* Catches any URL that didn't match a route above. */}
         <Route path="*" element={<NotFound />} />
-        <Route path="/Vendor-Orders" element={<VendorOrders/>} />
         
         <Route element={<RiderLayout />}>
   <Route

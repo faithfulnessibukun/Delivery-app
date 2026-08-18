@@ -1,5 +1,6 @@
 import { useState } from "react";
 import toast from "react-hot-toast";
+import { CURRENT_USER_KEYS } from "../utils/storage";
 
 // Lets a vendor upload a picture for their restaurant. Can be used two
 // ways: with a `vendor`/`setVendor` passed in from a parent page (like
@@ -7,7 +8,7 @@ import toast from "react-hot-toast";
 // it falls back to reading/writing the logged-in user directly.
 function VendorImageUpload({ vendor: vendorProp, setVendor: setVendorProp }) {
   const [vendor, setVendor] = useState(
-    () => vendorProp || JSON.parse(localStorage.getItem("currentUser")) || null
+    () => vendorProp || JSON.parse(localStorage.getItem(CURRENT_USER_KEYS.vendor)) || null
   );
   const [preview, setPreview] = useState(vendor?.restaurantImage || "");
 
@@ -39,7 +40,7 @@ function VendorImageUpload({ vendor: vendorProp, setVendor: setVendorProp }) {
       setVendorProp?.(updatedVendor);
 
       // Update localStorage
-      localStorage.setItem("currentUser", JSON.stringify(updatedVendor));
+      localStorage.setItem(CURRENT_USER_KEYS.vendor, JSON.stringify(updatedVendor));
 
       // Update preview
       setPreview(image);

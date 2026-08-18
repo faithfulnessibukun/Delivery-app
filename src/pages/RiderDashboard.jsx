@@ -11,6 +11,7 @@ import {
   FaSignOutAlt,
 } from "react-icons/fa";
 import toast from "react-hot-toast";
+import { CURRENT_USER_KEYS } from "../utils/storage";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
@@ -30,7 +31,7 @@ function Rider() {
   const navigate = useNavigate();
   
   const handleLogout = () => {
-  localStorage.removeItem("currentUser");
+  localStorage.removeItem(CURRENT_USER_KEYS.rider);
 
   toast.success("Logged out successfully!");
 
@@ -46,7 +47,7 @@ function Rider() {
   const [earnings, setEarnings] = useState(0);
   useEffect(() => {
   const currentUser =
-    JSON.parse(localStorage.getItem("currentUser")) || null;
+    JSON.parse(localStorage.getItem(CURRENT_USER_KEYS.rider)) || null;
 
   if (!currentUser || currentUser.role !== "rider") {
     toast.error("Please login as a rider.");
@@ -157,7 +158,7 @@ useEffect(() => {
             ...order,
             riderId: rider.id,
             riderName: rider.fullName,
-            status: "Accepted by Rider",
+            deliveryStatus: "Accepted by Rider",
           }
         : order
     );
@@ -187,7 +188,7 @@ useEffect(() => {
 
     toast.success("Delivery accepted!");
   };
-  const updateDeliveryStatus = (orderId, status) => {
+  const updateDeliveryStatus = (orderId, deliveryStatus) => {
   const orders =
     JSON.parse(localStorage.getItem("orders")) || [];
 
@@ -195,7 +196,7 @@ useEffect(() => {
     order.id === orderId
       ? {
           ...order,
-          status,
+          deliveryStatus,
         }
       : order
   );
@@ -204,10 +205,9 @@ useEffect(() => {
     "orders",
     JSON.stringify(updatedOrders)
   );
-  // Give the rider ₦1,000 when the delivery is completed
-if (status === "Delivered") {
-  const DELIVERY_FEE = 1000;
-
+  // Pay the rider the delivery fee the vendor set when marking the order
+  // Ready (order.riderEarnings) when the delivery is completed.
+if (deliveryStatus === "Delivered") {
   // Find the order being updated
   const deliveredOrder = updatedOrders.find(
     (order) => order.id === orderId
@@ -215,7 +215,8 @@ if (status === "Delivered") {
 
   // Only pay if this order has NOT already paid the rider
   if (!deliveredOrder.riderPaid) {
-    const newEarnings = earnings + DELIVERY_FEE;
+    const deliveryFee = Number(deliveredOrder.riderEarnings) || 0;
+    const newEarnings = earnings + deliveryFee;
 
     // Mark this specific order as already paid
     const ordersWithPayment = updatedOrders.map((order) =>
@@ -223,7 +224,6 @@ if (status === "Delivered") {
         ? {
             ...order,
             riderPaid: true,
-            riderEarnings: DELIVERY_FEE,
           }
         : order
     );
@@ -250,15 +250,15 @@ if (status === "Delivered") {
 
   window.dispatchEvent(new Event("ordersUpdated"));
 
-  if (status === "Picked Up") {
+  if (deliveryStatus === "Picked Up") {
     toast.success("Food picked up!");
   }
 
-  if (status === "Out for Delivery") {
+  if (deliveryStatus === "Out for Delivery") {
     toast.success("You're on the way to the customer!");
   }
 
-  if (status === "Delivered") {
+  if (deliveryStatus === "Delivered") {
     toast.success("Order delivered successfully!");
   }
 };
@@ -387,7 +387,7 @@ if (status === "Delivered") {
         <h2 className="text-3xl font-black text-[#1F1B16] mt-2">
           {
             myDeliveries.filter(
-              (order) => order.status === "Delivered"
+              (order) => order.deliveryStatus === "Delivered"
             ).length
           }
         </h2>
@@ -412,7 +412,7 @@ if (status === "Delivered") {
         <h2 className="text-3xl font-black text-[#1F1B16] mt-2">
           {
             myDeliveries.filter(
-              (order) => order.status !== "Delivered"
+              (order) => order.deliveryStatus !== "Delivered"
             ).length
           }
         </h2>
@@ -605,7 +605,7 @@ if (status === "Delivered") {
       <div className="text-right">
 
         <span className="inline-block bg-[#FCF0D6] text-[#9C7311] px-3 py-1 rounded-full text-sm font-bold">
-          {order.status}
+          {order.deliveryStatus}
         </span>
 
         <p className="font-black mt-2">
@@ -626,7 +626,7 @@ if (status === "Delivered") {
             "Picked Up",
             "Out for Delivery",
             "Delivered",
-          ].includes(order.status)
+          ].includes(order.deliveryStatus)
             ? "bg-[#E3EAE6] text-[#3B6255]"
             : "bg-gray-100 text-gray-400"
         }`}
@@ -640,7 +640,7 @@ if (status === "Delivered") {
             "Picked Up",
             "Out for Delivery",
             "Delivered",
-          ].includes(order.status)
+          ].includes(order.deliveryStatus)
             ? "bg-[#E3EAE6] text-[#3B6255]"
             : "bg-gray-100 text-gray-400"
         }`}
@@ -653,7 +653,7 @@ if (status === "Delivered") {
           [
             "Out for Delivery",
             "Delivered",
-          ].includes(order.status)
+          ].includes(order.deliveryStatus)
             ? "bg-[#E3EAE6] text-[#3B6255]"
             : "bg-gray-100 text-gray-400"
         }`}
@@ -663,7 +663,7 @@ if (status === "Delivered") {
 
       <div
         className={`text-center p-2 rounded-lg text-xs font-bold ${
-          order.status === "Delivered"
+          order.deliveryStatus === "Delivered"
             ? "bg-[#E3EAE6] text-[#3B6255]"
             : "bg-gray-100 text-gray-400"
         }`}
@@ -676,7 +676,7 @@ if (status === "Delivered") {
     {/* Action buttons */}
     <div className="mt-5">
 
-      {order.status === "Accepted by Rider" && (
+      {order.deliveryStatus === "Accepted by Rider" && (
         <button
           onClick={() =>
             updateDeliveryStatus(
@@ -690,7 +690,7 @@ if (status === "Delivered") {
         </button>
       )}
 
-      {order.status === "Picked Up" && (
+      {order.deliveryStatus === "Picked Up" && (
         <button
           onClick={() =>
             updateDeliveryStatus(
@@ -704,7 +704,7 @@ if (status === "Delivered") {
         </button>
       )}
 
-      {order.status === "Out for Delivery" && (
+      {order.deliveryStatus === "Out for Delivery" && (
         <button
           onClick={() =>
             updateDeliveryStatus(
@@ -718,7 +718,7 @@ if (status === "Delivered") {
         </button>
       )}
 
-      {order.status === "Delivered" && (
+      {order.deliveryStatus === "Delivered" && (
         <div className="bg-[#E3EAE6] text-[#3B6255] rounded-xl p-4 text-center font-bold">
           ✓ Delivery Completed
         </div>
@@ -754,7 +754,7 @@ if (status === "Delivered") {
           </div>
 
           {myDeliveries.filter(
-            (order) => order.status === "Delivered" && order.riderPaid
+            (order) => order.deliveryStatus === "Delivered" && order.riderPaid
           ).length === 0 ? (
 
             <div className="bg-white rounded-2xl shadow p-8 text-center">
@@ -781,7 +781,7 @@ if (status === "Delivered") {
               {myDeliveries
                 .filter(
                   (order) =>
-                    order.status === "Delivered" &&
+                    order.deliveryStatus === "Delivered" &&
                     order.riderPaid
                 )
                 .map((order) => (
@@ -813,7 +813,7 @@ if (status === "Delivered") {
 
                       <p className="text-green-600 font-black text-lg">
                         +₦{(
-                          order.riderEarnings || 1000
+                          order.riderEarnings || 0
                         ).toLocaleString()}
                       </p>
 

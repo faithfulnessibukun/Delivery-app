@@ -1,4 +1,5 @@
 import { useState, useEffect,useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { FaBars, FaStore } from "react-icons/fa";
 
 import Sidebar from "../components/Sidebar";
@@ -7,6 +8,7 @@ import StatsCards from "../components/Statscards";
 import RecentOrders from "../components/RecentOrders";
 
 import toast from "react-hot-toast";
+import { CURRENT_USER_KEYS } from "../utils/storage";
 
 
 
@@ -14,6 +16,7 @@ import toast from "react-hot-toast";
 // sidebar for navigation, plus a header, stats cards, and recent orders
 // list — each of those is its own component.
 function Dashboard() {
+  const navigate = useNavigate();
   // Controls whether the sidebar is open on mobile (it's always open on
   // desktop widths — see the responsive classes inside Sidebar.jsx).
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -23,13 +26,17 @@ function Dashboard() {
   // Fetch vendor's registered restaurant name on page load
   useEffect(() => {
     const currentUser = JSON.parse(
-      localStorage.getItem("currentUser")
+      localStorage.getItem(CURRENT_USER_KEYS.vendor)
     );
 
-    if (currentUser) {
-      setVendor(currentUser);
+    if (!currentUser || currentUser.role !== "vendor") {
+      toast.error("Please login as a vendor.");
+      navigate("/");
+      return;
     }
-  }, []);
+
+    setVendor(currentUser);
+  }, [navigate]);
 
   useEffect(() => {
   if (!vendor) return;
@@ -40,7 +47,7 @@ function Dashboard() {
 
     const vendorOrders = orders.filter(
       (order) =>
-        order.restaurantName === vendor.restaurantName
+        String(order.vendorId) === String(vendor.id)
     );
 
     if (

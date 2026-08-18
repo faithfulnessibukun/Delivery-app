@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { FaTimes, FaMinus, FaPlus, FaTrash, FaShoppingBag } from "react-icons/fa";
 import toast from "react-hot-toast";
 import { useCart } from "../context/CartContext";
-import { getStoredArray } from "../utils/storage";
+import { getStoredArray, CURRENT_USER_KEYS } from "../utils/storage";
 
 // The slide-in cart panel. It's rendered once in App.jsx (outside the
 // routes) so it can appear on top of any page. It reads/writes its state
@@ -41,72 +41,83 @@ function CartDrawer() {
   if (cart.length === 0) return;
 
   const orders = getStoredArray("orders");
-  const currentUser = JSON.parse(localStorage.getItem("currentUser")) || null;
+  const currentUser = JSON.parse(localStorage.getItem(CURRENT_USER_KEYS.customer)) || null;
 
-  // Get the customer's current GPS location
+  // Saves the order regardless of whether GPS location was obtained, so a
+  // denied/blocked/timed-out location prompt can't silently drop the order.
+  const saveOrder = (customerLatitude, customerLongitude) => {
+    const order = {
+      id: Date.now(),
+
+      // The vendor who owns the food in this order
+      vendorId: cart[0].vendorId,
+
+      // Restaurant name
+      restaurantName: cart[0].restaurantName,
+
+      pickupAddress: cart[0].restaurantAddress || " ",
+
+      // Customer who placed the order
+      customerId: currentUser?.id || null,
+      customerName: currentUser?.fullName || "Guest",
+      customerphone: currentUser?.phone || "N/A",
+
+      // All food items ordered
+      items: cart,
+
+      // Total price
+      total,
+
+      // Order status
+      status: "Placed",
+
+      // Time order was placed
+      placedAt: Date.now(),
+
+      // Rider information
+      riderId: null,
+      riderName: null,
+
+      // Rider earnings for this delivery — set by the vendor when they
+      // mark the order Ready (see VendorOrders.jsx).
+      riderEarnings: null,
+
+      // Customer's live GPS location (null if unavailable/denied)
+      customerLatitude,
+      customerLongitude,
+
+      // Rider tracking information
+      riderLatitude: null,
+      riderLongitude: null,
+      deliveryStatus: "Waiting for restaurant to confirm order",
+    };
+
+    localStorage.setItem(
+      "orders",
+      JSON.stringify([order, ...orders])
+    );
+    window.dispatchEvent(new Event("ordersUpdated"));
+
+    updateCart([]);
+    toast.success("Order placed!");
+    closeCart();
+    navigate("/orders");
+  };
+
+  if (!navigator.geolocation) {
+    saveOrder(null, null);
+    return;
+  }
+
   navigator.geolocation.getCurrentPosition(
     (position) => {
-      const customerLatitude = position.coords.latitude;
-      const customerLongitude = position.coords.longitude;
-
-      const order = {
-  id: Date.now(),
-
-  // The vendor who owns the food in this order
-  vendorId: cart[0].vendorId,
-
-  // Restaurant name
-  restaurantName: cart[0].restaurantName,
-
-  pickupAddress: cart[0].restaurantAddress || " ",
-
-  // Customer who placed the order
-  customerId: currentUser?.id || null,
-  customerName: currentUser?.fullName || "Guest",
-  customerphone:currentUser?.phone || "N/A",
-  
-
-  // All food items ordered
-  items: cart,
-
-  // Total price
-  total,
-
-  // Order status
-  status: "Placed",
-
-  // Time order was placed
-  placedAt: Date.now(),
-
-    // Rider information
-  riderId: null,
-  riderName: null,
-
-  // Rider earnings for this delivery
-  riderEarnings: 1500,
-   // Customer's live GPS location
-        customerLatitude,
-        customerLongitude,
-
-// Rider tracking information
-riderLatitude: null,
-riderLongitude: null,
-deliveryStatus: "Waiting for rider",
-};
-localStorage.setItem(
-        "orders",
-        JSON.stringify([order, ...orders])
-      );
-
-      updateCart([]);
-      toast.success("Order placed!");
-      closeCart();
-      navigate("/orders");
+      saveOrder(position.coords.latitude, position.coords.longitude);
     },
     () => {
       toast.error(
-        "Please allow location access so we can deliver your order."
+        "Couldn't get your location — placing order without live tracking."
       );
+      saveOrder(null, null);
     },
     {
       enableHighAccuracy: true,
@@ -115,7 +126,6 @@ localStorage.setItem(
     }
   );
 };
-    
 
   return (
     <>

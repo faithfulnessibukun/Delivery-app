@@ -2,16 +2,19 @@ import { useNavigate } from "react-router-dom";
 import { FaUserCircle, FaEnvelope, FaPhone, FaSignOutAlt, FaArrowLeft } from "react-icons/fa";
 import toast from "react-hot-toast";
 import CustomerNav from "../components/CustomerNav";
+import { CURRENT_USER_KEYS, getCurrentUser } from "../utils/storage";
 
-// Shows the logged-in customer's basic info and a logout button.
-// "Logged in" just means a currentUser object exists in localStorage, so
-// logging out is as simple as deleting that key.
+// Shows the logged-in user's basic info and a logout button. Works for
+// whichever role is actually signed in (customer/vendor/rider each have
+// their own localStorage key — see CURRENT_USER_KEYS).
 function Account() {
   const navigate = useNavigate();
-  const currentUser = JSON.parse(localStorage.getItem("currentUser")) || null;
+  const currentUser = getCurrentUser();
 
   const handleLogout = () => {
-    localStorage.removeItem("currentUser");
+    if (currentUser?.role) {
+      localStorage.removeItem(CURRENT_USER_KEYS[currentUser.role]);
+    }
     toast.success("Logged out.");
     navigate("/"); // back to the login screen
   };

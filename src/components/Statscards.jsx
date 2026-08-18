@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { CURRENT_USER_KEYS } from "../utils/storage";
 
 function StatsCards() {
   const [stats, setStats] = useState({
@@ -10,7 +11,7 @@ function StatsCards() {
   useEffect(() => {
   const loadStats = () => {
     const vendor =
-      JSON.parse(localStorage.getItem("currentUser")) || {};
+      JSON.parse(localStorage.getItem(CURRENT_USER_KEYS.vendor)) || {};
 
     const menus =
       JSON.parse(localStorage.getItem("menus")) || [];
@@ -20,12 +21,12 @@ function StatsCards() {
 
     const vendorMenus = menus.filter(
       (menu) =>
-        menu.restaurantName === vendor.restaurantName
+        String(menu.vendorId) === String(vendor.id)
     );
 
     const vendorOrders = orders.filter(
       (order) =>
-        order.restaurantName === vendor.restaurantName
+        String(order.vendorId) === String(vendor.id)
     );
 
     const revenue = vendorOrders.reduce(

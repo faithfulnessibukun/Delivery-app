@@ -1,20 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { FaUser, FaStore,FaMotorcycle, FaPepperHot, FaEye, FaEyeSlash } from "react-icons/fa";
-
-// A ready-made vendor account so moyo@gmail.com / admin123 always works
-// for logging in without having to register first.
-const SEED_ADMIN = {
-  id: "seed-admin",
-  fullName: "Moyo Admin",
-  email: "moyo@gmail.com",
-  phone: "",
-  password: "admin123",
-  role: "vendor",
-  restaurantName: "Admin",
-  restaurantAddress: "",
-};
+import { CURRENT_USER_KEYS } from "../../utils/storage";
 
 // This one page handles both logging in and registering a new account —
 // which form shows is controlled by the `isLogin` flag below, flipped by
@@ -38,15 +26,6 @@ function Login() {
 
   const navigate = useNavigate();
 
-  // Ensure the seed admin/vendor account exists so moyo@gmail.com / admin123
-  // always works for login without needing to register first.
-  useEffect(() => {
-    const users = JSON.parse(localStorage.getItem("users")) || [];
-    if (!users.some((user) => user.email === SEED_ADMIN.email)) {
-      localStorage.setItem("users", JSON.stringify([...users, SEED_ADMIN]));
-    }
-  }, []);
-
   // If someone is already logged in, skip the login screen entirely.
   // useEffect(() => {
   //   const user = JSON.parse(localStorage.getItem("currentUser"));
@@ -55,9 +34,10 @@ function Login() {
   // }, [navigate]);
 
   // Checks the typed email/password against every registered user in
-  // localStorage's "users" list. If one matches, save it as "currentUser"
-  // (that's what makes the person "logged in" everywhere else in the app)
-  // and send them to the right home screen for their role.
+  // localStorage's "users" list. If one matches, save it under that role's
+  // own key (vendorCurrentUser/riderCurrentUser/customerCurrentUser — see
+  // CURRENT_USER_KEYS) so different roles can stay signed in independently,
+  // then send them to the right home screen for their role.
   const handleSubmit = (e) => {
     e.preventDefault();
 
@@ -72,7 +52,7 @@ function Login() {
       return;
     }
 
-    localStorage.setItem("currentUser", JSON.stringify(user));
+    localStorage.setItem(CURRENT_USER_KEYS[user.role], JSON.stringify(user));
 
     toast.success("Login successful!");
 

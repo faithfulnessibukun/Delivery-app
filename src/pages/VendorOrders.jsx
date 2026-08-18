@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import {
   FaBars,
@@ -10,39 +11,78 @@ import {
 } from "react-icons/fa";
 
 import Sidebar from "../components/Sidebar";
+import { CURRENT_USER_KEYS } from "../utils/storage";
 
 function VendorOrders() {
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [vendor, setVendor] = useState(null);
   const [orders, setOrders] = useState([]);
 
   useEffect(() => {
-  const currentVendor = JSON.parse(
-    localStorage.getItem("currentUser")
-  );
+  const loadOrders = () => {
+    const currentVendor = JSON.parse(
+      localStorage.getItem(CURRENT_USER_KEYS.vendor)
+    );
 
-  setVendor(currentVendor);
+    if (!currentVendor || currentVendor.role !== "vendor") {
+      toast.error("Please login as a vendor.");
+      navigate("/");
+      return;
+    }
 
-  const savedOrders =
-    JSON.parse(localStorage.getItem("orders")) || [];
+    setVendor(currentVendor);
 
-  const vendorOrders = savedOrders.filter(
-    (order) =>
-      String(order.vendorId) === String(currentVendor?.id)
-  );
+    const savedOrders =
+      JSON.parse(localStorage.getItem("orders")) || [];
 
-  setOrders(vendorOrders);
-}, []);
+    const vendorOrders = savedOrders.filter(
+      (order) =>
+        String(order.vendorId) === String(currentVendor?.id)
+    );
+    setOrders(vendorOrders);
+  };
 
+  loadOrders();
+
+  window.addEventListener("ordersUpdated", loadOrders);
+  return () =>
+    window.removeEventListener("ordersUpdated", loadOrders);
+}, [navigate]);
+
+
+console.log("Vendor Orders:", orders);
   const updateStatus = (id, status) => {
   const allOrders =
     JSON.parse(localStorage.getItem("orders")) || [];
+
+  // Marking an order Ready is what hands it off to riders, so this is
+  // where the vendor sets what the rider gets paid for delivering it.
+  let riderEarnings;
+  if (status === "Ready") {
+    const currentOrder = allOrders.find((order) => order.id === id);
+    const input = prompt(
+      "Set the delivery fee for the rider (₦):",
+      currentOrder?.riderEarnings || ""
+    );
+
+    if (input === null) return; // vendor cancelled — don't change status
+
+    const fee = Number(input);
+    if (!input.trim() || Number.isNaN(fee) || fee <= 0) {
+      toast.error("Please enter a valid delivery fee.");
+      return;
+    }
+
+    riderEarnings = fee;
+  }
 
   const updatedOrders = allOrders.map((order) =>
     order.id === id
       ? {
           ...order,
           status,
+          ...(riderEarnings !== undefined && { riderEarnings }),
         }
       : order
   );
@@ -57,7 +97,7 @@ function VendorOrders() {
   setOrders(
     updatedOrders.filter(
       (order) =>
-        order.restaurantName === vendor?.restaurantName
+        String(order.vendorId) === String(vendor?.id)
     )
   );
 
@@ -166,8 +206,6 @@ function VendorOrders() {
                         <option>Placed</option>
                         <option>Preparing</option>
                         <option>Ready</option>
-                        <option>Out for Delivery</option>
-                        <option>Delivered</option>
                         <option>Cancelled</option>
                       </select>
                     </div>

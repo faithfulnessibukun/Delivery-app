@@ -6,6 +6,7 @@ import {
   FaCheckCircle,
 } from "react-icons/fa";
 import LiveDeliveryMap from "../components/LiveDeliveryMap";
+import { CURRENT_USER_KEYS } from "../utils/storage";
 
 function RiderCourierDelivery() {
   const [order, setOrder] = useState(null);
@@ -14,7 +15,7 @@ function RiderCourierDelivery() {
   // Get the courier order assigned to this rider
   const loadOrder = () => {
     const currentUser =
-      JSON.parse(localStorage.getItem("currentUser")) || null;
+      JSON.parse(localStorage.getItem(CURRENT_USER_KEYS.rider)) || null;
 
     const orders =
       JSON.parse(localStorage.getItem("courierOrders")) || [];

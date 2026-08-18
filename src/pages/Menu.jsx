@@ -1,5 +1,6 @@
 import {useState , useEffect} from "react";
 import toast from "react-hot-toast";
+import { FaBars, FaStore } from "react-icons/fa";
 import Sidebar from "../components/Sidebar";
 import MenuHeader from "../components/MenuHeader";
 import MenuForm from "../components/MenuForm";
@@ -9,6 +10,8 @@ import MenuTable from "../components/MenuTable";
 // (handled by MenuForm + MenuTable) and manage categories (handled here,
 // with a small popup/modal for adding a new one).
 function Menu() {
+  // Controls the mobile hamburger sidebar (see Sidebar.jsx).
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   // The vendor's saved menu items, loaded from localStorage on first render.
   const [menus, setMenus] = useState(() => {
     try {
@@ -90,9 +93,25 @@ function saveCategory() {
 }
   return (
     <div className="flex min-h-screen bg-gray-100">
-      <Sidebar />
+      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
-      <main className="flex-1 md:ml-64 p-6">
+      <main className="flex-1 md:ml-64">
+        {/* Mobile Header */}
+        <div className="md:hidden flex items-center justify-between bg-white shadow px-4 py-3">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="text-2xl"
+          >
+            <FaBars />
+          </button>
+
+          <h1 className="font-bold flex items-center gap-2">
+            <FaStore className="text-blue-600" />
+            Menu
+          </h1>
+        </div>
+
+        <div className="p-6">
         <MenuHeader
   categories={categories}
   deleteCategory={deleteCategory}
@@ -146,6 +165,7 @@ function saveCategory() {
     </div>
   </div>
 )}
+        </div>
       </main>
     </div>
   );

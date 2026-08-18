@@ -6,6 +6,7 @@ import {
   FaPhone,
   FaMotorcycle,
 } from "react-icons/fa";
+import { CURRENT_USER_KEYS } from "../utils/storage";
 
 function RiderCourierOrders() {
   const [courierOrders, setCourierOrders] = useState([]);
@@ -20,10 +21,21 @@ function RiderCourierOrders() {
   // PUT handleAcceptDelivery HERE
   const handleAcceptDelivery = (orderId) => {
     const currentUser =
-      JSON.parse(localStorage.getItem("currentUser")) || null;
+      JSON.parse(localStorage.getItem(CURRENT_USER_KEYS.rider)) || null;
 
     if (!currentUser) {
       alert("Please login as a rider first.");
+      return;
+    }
+
+    // Accepting is what commits the rider to the job, so this is where
+    // they set the delivery fee they're charging for it.
+    const input = prompt("Set your delivery fee for this job (₦):");
+    if (input === null) return; // rider cancelled
+
+    const fee = Number(input);
+    if (!input.trim() || Number.isNaN(fee) || fee <= 0) {
+      alert("Please enter a valid delivery fee.");
       return;
     }
 
@@ -42,6 +54,8 @@ function RiderCourierOrders() {
         riderName: currentUser.fullName || "Rider",
 
         status: "Rider Assigned",
+
+        deliveryFee: fee,
 
         riderLatitude: null,
         riderLongitude: null,
@@ -242,7 +256,9 @@ function RiderCourierOrders() {
                   </p>
 
                   <p className="font-black text-[#1F1B16]">
-                    ₦{Number(order.deliveryFee).toLocaleString()}
+                    {order.deliveryFee
+                      ? `₦${Number(order.deliveryFee).toLocaleString()}`
+                      : "You set this"}
                   </p>
                 </div>
 

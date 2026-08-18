@@ -1,4 +1,5 @@
 ﻿import { useEffect, useState } from "react";
+import { CURRENT_USER_KEYS } from "../utils/storage";
 
 function RecentOrders() {
   const [orders, setOrders] = useState([]);
@@ -8,7 +9,7 @@ function RecentOrders() {
   const loadOrders = () => {
 
     const vendor =
-      JSON.parse(localStorage.getItem("currentUser")) || {};
+      JSON.parse(localStorage.getItem(CURRENT_USER_KEYS.vendor)) || {};
 
     const allOrders =
       JSON.parse(localStorage.getItem("orders")) || [];
@@ -16,7 +17,7 @@ function RecentOrders() {
     const vendorOrders = allOrders
       .filter(
         (order) =>
-          order.restaurantName === vendor.restaurantName
+          String(order.vendorId) === String(vendor.id)
       )
       .sort((a, b) => b.placedAt - a.placedAt)
       .slice(0, 5);

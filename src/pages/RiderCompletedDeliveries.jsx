@@ -10,6 +10,7 @@ import {
 } from "react-icons/fa";
 import toast from "react-hot-toast";
 import RiderSidebar from "../components/RiderSidebar";
+import { CURRENT_USER_KEYS } from "../utils/storage";
 
 function RiderCompletedDeliveries() {
   const navigate = useNavigate();
@@ -20,7 +21,7 @@ function RiderCompletedDeliveries() {
 
   useEffect(() => {
     const currentUser =
-      JSON.parse(localStorage.getItem("currentUser")) || null;
+      JSON.parse(localStorage.getItem(CURRENT_USER_KEYS.rider)) || null;
 
     if (!currentUser || currentUser.role !== "rider") {
       toast.error("Please login as a rider.");
@@ -71,7 +72,7 @@ function RiderCompletedDeliveries() {
 
   const totalEarnings = completedDeliveries.reduce(
     (total, order) =>
-      total + Number(order.riderEarnings || 1000),
+      total + Number(order.riderEarnings || 0),
     0
   );
 
@@ -401,7 +402,7 @@ function RiderCompletedDeliveries() {
 
                   <p className="text-xl font-black text-[#3B6255]">
                     +₦{Number(
-                      order.riderEarnings || 1000
+                      order.riderEarnings || 0
                     ).toLocaleString()}
                   </p>
 

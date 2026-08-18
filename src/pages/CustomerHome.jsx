@@ -16,6 +16,7 @@ import AdvertVideo from "../assets/Advert.mp4";
 import CustomerNav from "../components/CustomerNav";
 import MOCK_MENUS from "../data/mockMenus";
 import { useCart } from "../context/CartContext";
+import { CURRENT_USER_KEYS } from "../utils/storage";
 
 // Cycle of accent colors from the Chop Chop palette — used to give each
 // category / restaurant ribbon a distinct, deliberate identity instead
@@ -74,23 +75,12 @@ function CustomerHome() {
     ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  // Mock fare estimate — base fare + a per-character stand-in for distance,
-  // plus a size multiplier. Not real distance/geocoding, just enough to
-  // demo the flow until a pricing engine is wired up.
-  const priceEstimate = useMemo(() => {
-    if (!pickupAddress.trim() || !destinationAddress.trim()) return null;
-
-    const sizeMultiplier = { Small: 1, Medium: 1.4, Large: 1.9 }[packageSize];
-    const distanceStandIn =
-      (pickupAddress.trim().length + destinationAddress.trim().length) * 15;
-    const fare = 500 + distanceStandIn * sizeMultiplier;
-
-    return Math.round(fare / 10) * 10;
-  }, [pickupAddress, destinationAddress, packageSize]);
+  const canBookRider =
+    pickupAddress.trim().length > 0 && destinationAddress.trim().length > 0;
 
   // Who is logged in right now (saved during login). Used just for the
   // "Good morning, <name>" greeting.
-  const currentUser = JSON.parse(localStorage.getItem("currentUser")) || null;
+  const currentUser = JSON.parse(localStorage.getItem(CURRENT_USER_KEYS.customer)) || null;
   const customerLocation = currentUser?.id
   ? JSON.parse(
       localStorage.getItem(
@@ -134,7 +124,7 @@ function CustomerHome() {
   }
 
   const currentUser =
-    JSON.parse(localStorage.getItem("currentUser")) || null;
+    JSON.parse(localStorage.getItem(CURRENT_USER_KEYS.customer)) || null;
 
   const courierOrders =
     JSON.parse(localStorage.getItem("courierOrders")) || [];
@@ -169,8 +159,9 @@ function CustomerHome() {
         // Package information
         packageSize,
 
-        // Delivery fee
-        deliveryFee: priceEstimate,
+        // Delivery fee — set by the rider when they accept the job (see
+        // RiderCourierOrders.jsx).
+        deliveryFee: null,
 
         // Courier status
         status: "Waiting for Rider",
@@ -298,7 +289,7 @@ function CustomerHome() {
   }
 
   const currentUser =
-    JSON.parse(localStorage.getItem("currentUser")) || null;
+    JSON.parse(localStorage.getItem(CURRENT_USER_KEYS.customer)) || null;
 
   // Watch the customer's location continuously
   const watchId = navigator.geolocation.watchPosition(
@@ -703,19 +694,16 @@ function CustomerHome() {
             ))}
           </div>
 
-          <div className="mt-5 pt-5 border-t border-[#EDE4D3] flex items-center justify-between">
-            <div className="flex items-center gap-2 text-[#8A8378]">
-              <FaBoxOpen size={14} />
-              <span className="text-sm font-medium">Estimated fare</span>
-            </div>
-            <span className="text-2xl font-black text-[#1F1B16]">
-              {priceEstimate ? `₦${priceEstimate.toLocaleString()}` : "—"}
+          <div className="mt-5 pt-5 border-t border-[#EDE4D3] flex items-center gap-2 text-[#8A8378]">
+            <FaBoxOpen size={14} />
+            <span className="text-sm font-medium">
+              A rider will quote the delivery fee once they accept your request.
             </span>
           </div>
 
           <button
           onClick={handleBookRider}
-            disabled={!priceEstimate}
+            disabled={!canBookRider}
             className="mt-5 w-full bg-[#3B6255] hover:bg-[#2E4C42] disabled:bg-[#D8CDB6] disabled:cursor-not-allowed text-white py-3 rounded-xl font-bold transition"
           >
             Book a Rider

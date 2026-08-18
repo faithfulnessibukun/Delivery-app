@@ -1,5 +1,6 @@
 import { NavLink,useNavigate } from "react-router-dom";
 import { FaTimes,FaSignOutAlt } from "react-icons/fa";
+import { CURRENT_USER_KEYS } from "../utils/storage";
 
 // The vendor-side navigation sidebar (Dashboard, Menu, Orders). On desktop
 // it's always visible; on mobile it slides in/out and `sidebarOpen` +
@@ -8,7 +9,7 @@ function Sidebar({ sidebarOpen, setSidebarOpen }) {
   const navigate = useNavigate();
 
 const handleLogout = () => {
-  localStorage.removeItem("currentUser");
+  localStorage.removeItem(CURRENT_USER_KEYS.vendor);
   navigate("/");
 };
   return (

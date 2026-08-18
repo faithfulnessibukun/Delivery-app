@@ -9,12 +9,13 @@ import {
   FaCheckCircle,
   FaMotorcycle,
 } from "react-icons/fa";
+import { CURRENT_USER_KEYS } from "../utils/storage";
 
 function RiderSidebar({ sidebarOpen, setSidebarOpen }) {
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    localStorage.removeItem("currentUser");
+    localStorage.removeItem(CURRENT_USER_KEYS.rider);
     navigate("/");
   };
 

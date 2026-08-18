@@ -4,6 +4,15 @@ import CustomerNav from "../components/CustomerNav";
 import { getStoredArray } from "../utils/storage";
 import LiveDeliveryMap from "../components/LiveDeliveryMap";
 
+// order.status tracks the restaurant's progress (Placed/Preparing/Ready/
+// Cancelled) and order.deliveryStatus tracks the rider's progress (Accepted
+// by Rider/Picked Up/Out for Delivery/Delivered) — separate fields set by
+// VendorOrders.jsx and RiderDashboard.jsx respectively. Show whichever one
+// reflects where the order actually is right now.
+function displayStatus(order) {
+  return order.riderId ? order.deliveryStatus : order.status;
+}
+
 // Shows every order the customer has placed so far. Orders are created in
 // CartDrawer.jsx's "Place Order" button and saved to localStorage — this
 // page just reads that list back out and displays it, newest first.
@@ -62,24 +71,42 @@ useEffect(() => {
 )}
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <p className="text-xs text-[#8A8378] flex items-center gap-1.5">
+                    <p className="font-bold text-[#1F1B16]">
+                      {order.restaurantName || "Restaurant"}
+                    </p>
+                    <p className="text-xs text-[#8A8378] mt-1">
+                      Order #{String(order.id).slice(-6)}
+                    </p>
+                    <p className="text-xs text-[#8A8378] flex items-center gap-1.5 mt-1">
                       <FaClock size={11} />
                       {new Date(order.placedAt).toLocaleString()}
                     </p>
-                    <p className="font-bold text-[#1F1B16] mt-1">
+                    <p className="text-xs text-[#8A8378] mt-1">
                       {order.items.length} item{order.items.length > 1 ? "s" : ""}
                     </p>
                   </div>
                   <span className="bg-[#FCF0D6] text-[#9C7311] text-xs font-bold px-3 py-1 rounded-full shrink-0">
-                    {order.status}
+                    {displayStatus(order)}
                   </span>
                 </div>
 
-                <div className="mt-3 space-y-1">
+                <div className="mt-3 space-y-2">
                   {order.items.map((item, index) => (
-                    <p key={index} className="text-sm text-[#5A5448]">
-                      {item.quantity}× {item.name}
-                    </p>
+                    <div key={index} className="flex items-start justify-between gap-3 text-sm">
+                      <div>
+                        <p className="text-[#5A5448]">
+                          {item.quantity}× {item.name}
+                        </p>
+                        {item.addOns?.length > 0 && (
+                          <p className="text-xs text-[#8A8378] mt-0.5">
+                            + {item.addOns.map((addOn) => addOn.name).join(", ")}
+                          </p>
+                        )}
+                      </div>
+                      <span className="font-semibold text-[#1F1B16] shrink-0">
+                        ₦{(item.price * item.quantity).toLocaleString()}
+                      </span>
+                    </div>
                   ))}
                 </div>
 
@@ -89,7 +116,10 @@ useEffect(() => {
                     ₦{order.total.toLocaleString()}
                   </span>
                 </div>
-                {/* Delivery Tracking */}
+                {/* Delivery Tracking — only once the vendor has marked the
+                    order Ready (so a rider can actually be assigned), and
+                    only until it's been delivered. */}
+{order.status === "Ready" && order.deliveryStatus !== "Delivered" && (
 <div className="mt-4 bg-[#F5FBEF] border border-[#D8EACD] rounded-2xl p-4">
   <div className="flex items-center gap-3">
 
@@ -131,6 +161,7 @@ useEffect(() => {
     </div>
   )}
 </div>
+)}
               </div>
             ))}
           </div>

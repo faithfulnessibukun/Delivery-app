@@ -1,8 +1,11 @@
 import { useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { CURRENT_USER_KEYS } from "../utils/storage";
 
 function DashboardHeader({ vendor, setVendor }) {
 
   const fileInputRef = useRef(null);
+  const navigate = useNavigate();
 
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
@@ -20,7 +23,7 @@ function DashboardHeader({ vendor, setVendor }) {
       setVendor(updatedVendor);
 
       localStorage.setItem(
-        "currentUser",
+        CURRENT_USER_KEYS.vendor,
         JSON.stringify(updatedVendor)
       );
     };
@@ -102,7 +105,10 @@ function DashboardHeader({ vendor, setVendor }) {
 
 
 
-        <button className="bg-blue-600 text-white px-5 py-3 rounded-lg hover:bg-blue-700">
+        <button
+          onClick={() => navigate("/menu")}
+          className="bg-blue-600 text-white px-5 py-3 rounded-lg hover:bg-blue-700"
+        >
           Add Menu
         </button>
 

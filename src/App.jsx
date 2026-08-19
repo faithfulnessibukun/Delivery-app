@@ -15,10 +15,10 @@ import NotFound from "./pages/NotFound";
 import { CartProvider } from "./context/CartContext";
 import CartDrawer from "./components/CartDrawer";
 import VendorOrders from "./pages/VendorOrders";
-import RiderCourierOrders from "./pages/RiderCourierOrders";
+
 import RiderDashboard from "./pages/RiderDashboard";
-import RiderCourierDelivery from "./pages/RiderCourierDelivery";
 import RiderLayout from "./components/RiderLayout";
+import RiderCompletedDeliveries from "./pages/RiderCompletedDeliveries";
 
 
 
@@ -56,16 +56,12 @@ function App() {
     element={<RiderDashboard />}
   />
 
-  <Route
-    path="/rider-courier-orders"
-    element={<RiderCourierOrders />}
-  />
-
-  <Route
-    path="/rider-courier-delivery"
-    element={<RiderCourierDelivery />}
-  />
+  
 </Route>
+<Route
+  path="/rider-completed-deliveries"
+  element={<RiderCompletedDeliveries />}
+/>
       </Routes>
     </CartProvider>
   );

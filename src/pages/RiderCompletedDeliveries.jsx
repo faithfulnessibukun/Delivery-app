@@ -36,10 +36,10 @@ function RiderCompletedDeliveries() {
         JSON.parse(localStorage.getItem("orders")) || [];
 
       const completed = orders.filter(
-        (order) =>
-          order.riderId === currentUser.id &&
-          order.status === "Delivered"
-      );
+  (order) =>
+    order.riderId === currentUser.id &&
+    order.deliveryStatus === "Delivered"
+);
 
       // Newest completed deliveries first
       completed.sort(

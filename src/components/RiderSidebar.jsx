@@ -2,20 +2,16 @@ import { NavLink, useNavigate } from "react-router-dom";
 import {
   FaTimes,
   FaSignOutAlt,
-  FaBoxOpen,
-  FaMapMarkedAlt,
   FaTachometerAlt,
-  FaUtensils,
   FaCheckCircle,
   FaMotorcycle,
 } from "react-icons/fa";
-import { CURRENT_USER_KEYS } from "../utils/storage";
 
 function RiderSidebar({ sidebarOpen, setSidebarOpen }) {
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    localStorage.removeItem(CURRENT_USER_KEYS.rider);
+    localStorage.removeItem("currentUser");
     navigate("/");
   };
 
@@ -41,13 +37,19 @@ function RiderSidebar({ sidebarOpen, setSidebarOpen }) {
           bg-[#1F1B16] text-white
           shadow-2xl
           transform transition-transform duration-300 ease-in-out
-          ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
+          ${
+            sidebarOpen
+              ? "translate-x-0"
+              : "-translate-x-full md:translate-x-0"
+          }
         `}
       >
-        {/* Sidebar Header */}
+
+        {/* Header */}
         <div className="flex items-center justify-between px-6 py-6 border-b border-white/10">
-          
+
           <div className="flex items-center gap-3">
+
             <div className="bg-[#F4B740] text-[#1F1B16] p-2.5 rounded-xl">
               <FaMotorcycle size={20} />
             </div>
@@ -61,19 +63,22 @@ function RiderSidebar({ sidebarOpen, setSidebarOpen }) {
                 Delivery Center
               </p>
             </div>
+
           </div>
 
-          {/* Close button - mobile only */}
+          {/* Mobile close */}
           <button
             onClick={closeSidebar}
             className="md:hidden text-gray-300 hover:text-white hover:bg-white/10 p-2 rounded-lg transition"
           >
             <FaTimes size={20} />
           </button>
+
         </div>
 
         {/* Navigation */}
         <nav className="px-4 py-6">
+
           <p className="text-xs font-bold uppercase tracking-wider text-gray-500 px-3 mb-3">
             Main Menu
           </p>
@@ -95,60 +100,6 @@ function RiderSidebar({ sidebarOpen, setSidebarOpen }) {
               >
                 <FaTachometerAlt />
                 <span>Dashboard</span>
-              </NavLink>
-            </li>
-
-            {/* Courier Orders */}
-            <li>
-              <NavLink
-                to="/rider-courier-orders"
-                onClick={closeSidebar}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition ${
-                    isActive
-                      ? "bg-[#F4B740] text-[#1F1B16] shadow-md"
-                      : "text-gray-300 hover:bg-white/10 hover:text-white"
-                  }`
-                }
-              >
-                <FaBoxOpen />
-                <span>Courier Orders</span>
-              </NavLink>
-            </li>
-
-            {/* Active Courier Delivery */}
-            <li>
-              <NavLink
-                to="/rider-courier-delivery"
-                onClick={closeSidebar}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition ${
-                    isActive
-                      ? "bg-[#F4B740] text-[#1F1B16] shadow-md"
-                      : "text-gray-300 hover:bg-white/10 hover:text-white"
-                  }`
-                }
-              >
-                <FaMapMarkedAlt />
-                <span>Active Courier Delivery</span>
-              </NavLink>
-            </li>
-
-            {/* Active Food Delivery */}
-            <li>
-              <NavLink
-                to="/rider-food-delivery"
-                onClick={closeSidebar}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition ${
-                    isActive
-                      ? "bg-[#F4B740] text-[#1F1B16] shadow-md"
-                      : "text-gray-300 hover:bg-white/10 hover:text-white"
-                  }`
-                }
-              >
-                <FaUtensils />
-                <span>Active Food Delivery</span>
               </NavLink>
             </li>
 
@@ -174,6 +125,7 @@ function RiderSidebar({ sidebarOpen, setSidebarOpen }) {
 
           {/* Logout */}
           <div className="mt-8 pt-6 border-t border-white/10">
+
             <button
               onClick={handleLogout}
               className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-400 font-semibold hover:bg-red-600 hover:text-white transition"
@@ -181,8 +133,11 @@ function RiderSidebar({ sidebarOpen, setSidebarOpen }) {
               <FaSignOutAlt />
               <span>Logout</span>
             </button>
+
           </div>
+
         </nav>
+
       </aside>
     </>
   );

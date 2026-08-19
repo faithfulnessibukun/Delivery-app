@@ -1,842 +1,558 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import LiveDeliveryMap from "../components/LiveDeliveryMap";
 import {
   FaMotorcycle,
   FaMapMarkerAlt,
   FaBoxOpen,
   FaMoneyBillWave,
-  FaClock,
   FaWallet,
-  FaSignOutAlt,
+  FaLayerGroup,
 } from "react-icons/fa";
 import toast from "react-hot-toast";
+import LiveDeliveryMap from "../components/LiveDeliveryMap";
+import DeliveryOfferPopup from "../components/DeliveryOfferPopup";
 import { CURRENT_USER_KEYS } from "../utils/storage";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
-import "leaflet/dist/leaflet.css";
-import L from "leaflet";
+import {
+  MAX_BATCH_SIZE,
+  getAvailableForOffers,
+  getMyBatch,
+  getMyCompleted,
+  acceptDelivery,
+  cancelDelivery,
+  updateDeliveryStatus,
+  markPaidIfNeeded,
+  pushRiderLocationToBatch,
+} from "../utils/deliveryPool";
 
-const riderIcon = new L.Icon({
-  iconUrl:
-    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png",
-  iconRetinaUrl:
-    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png",
-  shadowUrl:
-    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png",
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-});
+// How long (ms) an offer this rider ignored/let expire stays hidden
+// from them before it's eligible to be shown again.
+const DISMISS_COOLDOWN_MS = 45000;
 
-function Rider() {
+// Workflow stages shown per delivery type. Food has a 4-step flow;
+// courier is simpler (assigned -> out for delivery -> delivered), with
+// "Out for Delivery" set automatically once the rider's GPS starts moving.
+const FOOD_STEPS = ["Accepted by Rider", "Picked Up", "Out for Delivery", "Delivered"];
+const FOOD_STEP_LABELS = ["Accepted", "Pickup", "On the Way", "Delivered"];
+
+function RiderDashboard() {
   const navigate = useNavigate();
-  
+
   const handleLogout = () => {
-  localStorage.removeItem(CURRENT_USER_KEYS.rider);
-
-  toast.success("Logged out successfully!");
-
-  navigate("/");
-};
-
+    localStorage.removeItem(CURRENT_USER_KEYS.rider);
+    toast.success("Logged out successfully!");
+    navigate("/");
+  };
 
   const [rider, setRider] = useState(null);
-  const [availableDeliveries, setAvailableDeliveries] = useState([]);
-  const [myDeliveries, setMyDeliveries] = useState([]);
-  const watchIdRef = useRef(null);
-  const [riderLocation, setRiderLocation] = useState(null);
+  const [myBatch, setMyBatch] = useState([]);
+  const [myCompleted, setMyCompleted] = useState([]);
   const [earnings, setEarnings] = useState(0);
+  const [currentOffer, setCurrentOffer] = useState(null);
+
+  const dismissedRef = useRef(new Map()); // poolId -> dismissedAt timestamp
+  const currentOfferRef = useRef(null);
+  currentOfferRef.current = currentOffer;
+
+  // --- Auth + initial load --------------------------------------------
   useEffect(() => {
-  const currentUser =
-    JSON.parse(localStorage.getItem(CURRENT_USER_KEYS.rider)) || null;
+    const currentUser =
+      JSON.parse(localStorage.getItem(CURRENT_USER_KEYS.rider)) || null;
 
-  if (!currentUser || currentUser.role !== "rider") {
-    toast.error("Please login as a rider.");
-    navigate("/");
-    return;
-  }
-
-  setRider(currentUser);
-
-// Load this rider's earnings
-const savedEarnings = Number(
-  localStorage.getItem(`riderEarnings_${currentUser.id}`)
-) || 0;
-
-setEarnings(savedEarnings);
-
-const loadDeliveries = () => {
-
-  
-    const orders =
-      JSON.parse(localStorage.getItem("orders")) || [];
-
-    // Orders marked Ready by the vendor
-    // and not yet accepted by another rider.
-    const available = orders.filter(
-      (order) =>
-        order.status === "Ready" &&
-        !order.riderId
-    );
-
-    // Orders already accepted by this rider.
-    const mine = orders.filter(
-      (order) =>
-        order.riderId === currentUser.id
-    );
-
-    setAvailableDeliveries(available);
-    setMyDeliveries(mine);
-  };
-
-  // Load orders when the rider page opens.
-  loadDeliveries();
-
-  // Listen for changes made by the vendor.
-  window.addEventListener(
-    "ordersUpdated",
-    loadDeliveries
-  );
-
-  return () => {
-    window.removeEventListener(
-      "ordersUpdated",
-      loadDeliveries
-    );
-  };
-}, [navigate]);
-useEffect(() => {
-  if (!rider) return;
-
-  if (!navigator.geolocation) {
-    toast.error("Your browser does not support location.");
-    return;
-  }
-
-  const watchId = navigator.geolocation.watchPosition(
-    (position) => {
-      const latitude = position.coords.latitude;
-      const longitude = position.coords.longitude;
-
-      const newLocation = {
-        latitude,
-        longitude,
-        updatedAt: Date.now(),
-      };
-
-      setRiderLocation(newLocation);
-
-      // Save rider's live location
-      localStorage.setItem(
-        `riderLocation_${rider.id}`,
-        JSON.stringify(newLocation)
-      );
-
-      // Tell other pages that the rider location changed
-      window.dispatchEvent(new Event("riderLocationUpdated"));
-    },
-    () => {
-      toast.error("Please allow location access for live delivery tracking.");
-    },
-    {
-      enableHighAccuracy: true,
-      maximumAge: 0,
-      timeout: 10000,
+    if (!currentUser || currentUser.role !== "rider") {
+      toast.error("Please login as a rider.");
+      navigate("/");
+      return;
     }
-  );
 
-  return () => {
-    navigator.geolocation.clearWatch(watchId);
-  };
-}, [rider]);
-  const acceptDelivery = (orderId) => {
-    const orders =
-      JSON.parse(localStorage.getItem("orders")) || [];
+    setRider(currentUser);
 
-    const updatedOrders = orders.map((order) =>
-      order.id === orderId
-        ? {
-            ...order,
-            riderId: rider.id,
-            riderName: rider.fullName,
-            deliveryStatus: "Accepted by Rider",
-          }
-        : order
-    );
+    const savedEarnings =
+      Number(localStorage.getItem(`riderEarnings_${currentUser.id}`)) || 0;
+    setEarnings(savedEarnings);
+  }, [navigate]);
 
-    localStorage.setItem(
-      "orders",
-      JSON.stringify(updatedOrders)
-    );
+  // --- Keep batch + completed lists in sync with both order stores ----
+  const refreshLists = useCallback(() => {
+    if (!rider) return;
+    setMyBatch(getMyBatch(rider.id));
+    setMyCompleted(getMyCompleted(rider.id));
+  }, [rider]);
 
-    const accepted = updatedOrders.find(
-      (order) => order.id === orderId
-    );
+  useEffect(() => {
+    if (!rider) return;
+    refreshLists();
 
-    setAvailableDeliveries(
-      updatedOrders.filter(
-        (order) =>
-          order.status === "Ready" &&
-          !order.riderId
-      )
-    );
+    window.addEventListener("ordersUpdated", refreshLists);
+    window.addEventListener("courierOrdersUpdated", refreshLists);
+    return () => {
+      window.removeEventListener("ordersUpdated", refreshLists);
+      window.removeEventListener("courierOrdersUpdated", refreshLists);
+    };
+  }, [rider, refreshLists]);
 
-    setMyDeliveries(
-      updatedOrders.filter(
-        (order) => order.riderId === rider.id
-      )
-    );
+  // --- Pay the rider once a delivery reaches "Delivered" ---------------
+  useEffect(() => {
+    if (!rider) return;
+    myBatch
+      .filter((d) => d.isDelivered)
+      .forEach((d) => {
+        const fee = markPaidIfNeeded(d.poolId);
+        if (fee > 0) {
+          setEarnings((prev) => {
+            const next = prev + fee;
+            localStorage.setItem(`riderEarnings_${rider.id}`, next.toString());
+            return next;
+          });
+        }
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myBatch, rider]);
+
+  // --- Offer polling: only when batch has room and nothing is showing --
+  useEffect(() => {
+    if (!rider) return;
+
+    const poll = () => {
+      if (currentOfferRef.current) return; // already showing one
+      if (myBatch.length >= MAX_BATCH_SIZE) return; // batch locked
+
+      const now = Date.now();
+      const available = getAvailableForOffers().filter((d) => {
+        const dismissedAt = dismissedRef.current.get(d.poolId);
+        return !dismissedAt || now - dismissedAt > DISMISS_COOLDOWN_MS;
+      });
+
+      if (available.length > 0) {
+        setCurrentOffer(available[0]);
+      }
+    };
+
+    poll();
+    const interval = setInterval(poll, 3000);
+    window.addEventListener("ordersUpdated", poll);
+    window.addEventListener("courierOrdersUpdated", poll);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("ordersUpdated", poll);
+      window.removeEventListener("courierOrdersUpdated", poll);
+    };
+  }, [rider, myBatch.length]);
+
+  const handleAcceptOffer = (offer) => {
+    const won = acceptDelivery(offer.poolId, rider);
+    setCurrentOffer(null);
+
+    if (!won) {
+      toast.error("Too slow — another rider already took that one.");
+      return;
+    }
 
     toast.success("Delivery accepted!");
+    refreshLists();
   };
-  const updateDeliveryStatus = (orderId, deliveryStatus) => {
-  const orders =
-    JSON.parse(localStorage.getItem("orders")) || [];
 
-  const updatedOrders = orders.map((order) =>
-    order.id === orderId
-      ? {
-          ...order,
-          deliveryStatus,
-        }
-      : order
-  );
+  const handleIgnoreOffer = (offer, { expired }) => {
+    dismissedRef.current.set(offer.poolId, Date.now());
+    setCurrentOffer(null);
+    if (expired) {
+      // Offer just times out for THIS rider — it's still available to
+      // everyone else, so no toast needed, it just quietly disappears.
+    }
+  };
 
-  localStorage.setItem(
-    "orders",
-    JSON.stringify(updatedOrders)
-  );
-  // Pay the rider the delivery fee the vendor set when marking the order
-  // Ready (order.riderEarnings) when the delivery is completed.
-if (deliveryStatus === "Delivered") {
-  // Find the order being updated
-  const deliveredOrder = updatedOrders.find(
-    (order) => order.id === orderId
-  );
+  const handleCancelPickup = (poolId) => {
+    cancelDelivery(poolId);
+    toast("Delivery returned to the pool.", { icon: "↩️" });
+    refreshLists();
+  };
 
-  // Only pay if this order has NOT already paid the rider
-  if (!deliveredOrder.riderPaid) {
-    const deliveryFee = Number(deliveredOrder.riderEarnings) || 0;
-    const newEarnings = earnings + deliveryFee;
+  const handleAdvanceFood = (poolId, nextStatus) => {
+    updateDeliveryStatus(poolId, nextStatus);
+    refreshLists();
+    if (nextStatus === "Picked Up") toast.success("Food picked up!");
+    if (nextStatus === "Out for Delivery")
+      toast.success("You're on the way to the customer!");
+    if (nextStatus === "Delivered") toast.success("Order delivered successfully!");
+  };
 
-    // Mark this specific order as already paid
-    const ordersWithPayment = updatedOrders.map((order) =>
-      order.id === orderId
-        ? {
-            ...order,
-            riderPaid: true,
-          }
-        : order
+  const handleAdvanceCourier = (poolId, nextStatus) => {
+    updateDeliveryStatus(poolId, nextStatus);
+    refreshLists();
+    if (nextStatus === "Delivered") toast.success("Package delivered successfully!");
+  };
+
+  // --- Rider live location: GPS watch + push onto every active delivery
+  useEffect(() => {
+    if (!rider) return;
+
+    if (!navigator.geolocation) {
+      toast.error("Your browser does not support location.");
+      return;
+    }
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+
+        localStorage.setItem(
+          `riderLocation_${rider.id}`,
+          JSON.stringify({ latitude, longitude, updatedAt: Date.now() })
+        );
+        window.dispatchEvent(new Event("riderLocationUpdated"));
+
+        pushRiderLocationToBatch(rider.id, latitude, longitude);
+      },
+      () => {
+        toast.error("Please allow location access for live delivery tracking.");
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
     );
 
-    localStorage.setItem(
-      "orders",
-      JSON.stringify(ordersWithPayment)
-    );
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [rider]);
 
-    setEarnings(newEarnings);
+  if (!rider) return null;
 
-    localStorage.setItem(
-      `riderEarnings_${rider.id}`,
-      newEarnings.toString()
-    );
-  }
-}
-
-  setMyDeliveries(
-    updatedOrders.filter(
-      (order) => order.riderId === rider.id
-    )
+  const batchCount = myBatch.length;
+  const batchLocked = batchCount >= MAX_BATCH_SIZE;
+  const deliveredInBatch = myBatch.filter((d) => d.isDelivered).length;
+  const mapTarget = myBatch.find(
+    (d) => d.type === "food" && d.raw.customerLatitude && d.raw.customerLongitude
   );
-
-  window.dispatchEvent(new Event("ordersUpdated"));
-
-  if (deliveryStatus === "Picked Up") {
-    toast.success("Food picked up!");
-  }
-
-  if (deliveryStatus === "Out for Delivery") {
-    toast.success("You're on the way to the customer!");
-  }
-
-  if (deliveryStatus === "Delivered") {
-    toast.success("Order delivered successfully!");
-  }
-};
-
-  if (!rider) {
-    return null;
-  }
 
   return (
     <div className="min-h-screen bg-gray-100">
+      {/* Offer popup */}
+      <DeliveryOfferPopup
+        offer={currentOffer}
+        onAccept={handleAcceptOffer}
+        onIgnore={handleIgnoreOffer}
+      />
 
       {/* Header */}
       <div className="bg-[#1F1B16] text-white px-6 py-4 shadow-lg">
-        <div className="w-full">
-
-          <div className="flex items-center justify-between gap-4">
-
-  <div className="flex items-center gap-3">
-
-    <div className="bg-[#F4B740] text-[#1F1B16] p-3 rounded-xl">
-      <FaMotorcycle size={22} />
-    </div>
-
-    <div>
-      <h1 className="text-2xl font-black">
-        Rider Dashboard
-      </h1>
-
-      <p className="text-[#C9C2B4] text-sm">
-        Welcome, {rider.fullName}
-      </p>
-    </div>
-
-  </div>
-
-  <button
-    onClick={handleLogout}
-    className="flex items-center gap-2 bg-white/10 hover:bg-white/20 px-4 py-2.5 rounded-xl font-bold transition"
-  >
-    <FaSignOutAlt />
-    <span className="hidden sm:inline">
-      Logout
-    </span>
-  </button>
-
-</div>
-
-        </div>
-      </div>
-
-      <main className="min-h-screen w-auto p-4 pt-20 md:p-6 md:pt-6">
-                {/* Customer Location Map */}
-        {myDeliveries.length > 0 &&
-          myDeliveries[0].customerLatitude &&
-          myDeliveries[0].customerLongitude && (
-            <section className="mb-6">
-              <h2 className="text-2xl font-black text-[#1F1B16] mb-4">
-                Customer Location
-              </h2>
-
-              <div className="bg-white rounded-2xl shadow overflow-hidden">
-                <MapContainer
-                  center={[
-                    myDeliveries[0].customerLatitude,
-                    myDeliveries[0].customerLongitude,
-                  ]}
-                  zoom={15}
-                  scrollWheelZoom={true}
-                  className="w-full h-[300px]"
-                >
-                  <TileLayer
-                    attribution='&copy; OpenStreetMap contributors'
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                  />
-
-                  <Marker
-                    position={[
-                      myDeliveries[0].customerLatitude,
-                      myDeliveries[0].customerLongitude,
-                    ]}
-                    icon={riderIcon}
-                  >
-                    <Popup>
-                      <strong>Customer Location</strong>
-                      <br />
-                      {myDeliveries[0].customerName}
-                    </Popup>
-                  </Marker>
-                </MapContainer>
-              </div>
-            </section>
-          )}
-      {/* Rider Statistics */}
-<div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-
-  {/* Total Earnings */}
-  <div className="bg-white rounded-2xl shadow p-4">
-    <div className="flex items-center justify-between">
-
-      <div>
-        <p className="text-sm text-gray-500 font-medium">
-          Total Earnings
-        </p>
-
-        <h2 className="text-3xl font-black text-[#1F1B16] mt-2">
-          ₦{earnings.toLocaleString()}
-        </h2>
-      </div>
-
-      <div className="bg-[#E3EAE6] text-[#3B6255] p-4 rounded-xl">
-        <FaWallet size={22} />
-      </div>
-
-    </div>
-  </div>
-
-  {/* Completed Deliveries */}
-  <div className="bg-white rounded-2xl shadow p-6">
-    <div className="flex items-center justify-between">
-
-      <div>
-        <p className="text-sm text-gray-500 font-medium">
-          Completed Deliveries
-        </p>
-
-        <h2 className="text-3xl font-black text-[#1F1B16] mt-2">
-          {
-            myDeliveries.filter(
-              (order) => order.deliveryStatus === "Delivered"
-            ).length
-          }
-        </h2>
-      </div>
-
-      <div className="bg-[#FCF0D6] text-[#9C7311] p-4 rounded-xl">
-        <FaBoxOpen size={22} />
-      </div>
-
-    </div>
-  </div>
-
-  {/* Pending Deliveries */}
-  <div className="bg-white rounded-2xl shadow p-6">
-    <div className="flex items-center justify-between">
-
-      <div>
-        <p className="text-sm text-gray-500 font-medium">
-          Active Deliveries
-        </p>
-
-        <h2 className="text-3xl font-black text-[#1F1B16] mt-2">
-          {
-            myDeliveries.filter(
-              (order) => order.deliveryStatus !== "Delivered"
-            ).length
-          }
-        </h2>
-      </div>
-
-      <div className="bg-[#FCE7DD] text-[#E8491D] p-4 rounded-xl">
-        <FaMotorcycle size={22} />
-      </div>
-
-    </div>
-  </div>
-
-</div>
-
-        {/* Available Deliveries */}
-        <section>
-          <div className="flex items-center justify-between mb-5">
-            <div>
-              <h2 className="text-2xl font-black text-[#1F1B16]">
-                Available Deliveries
-              </h2>
-
-              <p className="text-gray-500 mt-1">
-                Orders that are ready for pickup.
-              </p>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="bg-[#F4B740] text-[#1F1B16] p-3 rounded-xl">
+              <FaMotorcycle size={22} />
             </div>
-
-            <div className="bg-[#E3EAE6] text-[#3B6255] px-4 py-2 rounded-full font-bold">
-              {availableDeliveries.length} Available
+            <div>
+              <h1 className="text-2xl font-black">Rider Dashboard</h1>
+              <p className="text-[#C9C2B4] text-sm">Welcome, {rider.fullName}</p>
             </div>
           </div>
 
-          {availableDeliveries.length === 0 ? (
-            <div className="bg-white rounded-2xl shadow p-10 text-center">
-              <FaBoxOpen
-                className="mx-auto text-gray-300 mb-4"
-                size={40}
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 bg-white/10 hover:bg-white/20 px-4 py-2.5 rounded-xl font-bold transition"
+          >
+            <span className="hidden sm:inline">Logout</span>
+          </button>
+        </div>
+      </div>
+
+      <main className="min-h-screen w-auto p-4 pt-6 md:p-6">
+        {/* Stats */}
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          <div className="bg-white rounded-2xl shadow p-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500 font-medium">Total Earnings</p>
+              <h2 className="text-3xl font-black text-[#1F1B16] mt-2">
+                ₦{earnings.toLocaleString()}
+              </h2>
+            </div>
+            <div className="bg-[#E3EAE6] text-[#3B6255] p-4 rounded-xl">
+              <FaWallet size={22} />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow p-6 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500 font-medium">Completed Deliveries</p>
+              <h2 className="text-3xl font-black text-[#1F1B16] mt-2">
+                {myCompleted.length}
+              </h2>
+            </div>
+            <div className="bg-[#FCF0D6] text-[#9C7311] p-4 rounded-xl">
+              <FaBoxOpen size={22} />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow p-6 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500 font-medium">Current Batch</p>
+              <h2 className="text-3xl font-black text-[#1F1B16] mt-2">
+                {batchCount} / {MAX_BATCH_SIZE}
+              </h2>
+            </div>
+            <div className="bg-[#FCE7DD] text-[#E8491D] p-4 rounded-xl">
+              <FaLayerGroup size={22} />
+            </div>
+          </div>
+        </div>
+
+        {/* Active Batch */}
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-2xl font-black text-[#1F1B16]">Active Batch</h2>
+              <p className="text-gray-500 mt-1">
+                {batchCount === 0
+                  ? "You'll get an offer as soon as one is available."
+                  : `${deliveredInBatch} / ${batchCount} completed in this batch.`}
+              </p>
+            </div>
+          </div>
+
+          {batchCount > 0 && (
+            <div className="bg-white rounded-2xl shadow p-4 mb-5">
+              <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+                <div
+                  className="bg-[#3B6255] h-3 rounded-full transition-all"
+                  style={{
+                    width: `${(deliveredInBatch / MAX_BATCH_SIZE) * 100}%`,
+                  }}
+                />
+              </div>
+              <p className="text-sm text-gray-500 mt-2">
+                {batchLocked
+                  ? "New delivery offers are locked until this batch is completed."
+                  : `${MAX_BATCH_SIZE - batchCount} slot${
+                      MAX_BATCH_SIZE - batchCount === 1 ? "" : "s"
+                    } left in this batch.`}
+              </p>
+            </div>
+          )}
+
+          {/* Batch map (food deliveries with GPS coords) */}
+          {mapTarget && (
+            <div className="bg-white rounded-2xl shadow overflow-hidden mb-5">
+              <LiveDeliveryMap
+                customerLatitude={mapTarget.raw.customerLatitude}
+                customerLongitude={mapTarget.raw.customerLongitude}
+                riderLatitude={mapTarget.raw.riderLatitude}
+                riderLongitude={mapTarget.raw.riderLongitude}
               />
+            </div>
+          )}
 
-              <h3 className="text-lg font-bold">
-                No deliveries available
-              </h3>
-
+          {batchCount === 0 ? (
+            <div className="bg-white rounded-2xl shadow p-10 text-center">
+              <FaBoxOpen className="mx-auto text-gray-300 mb-4" size={40} />
+              <h3 className="text-lg font-bold">No active deliveries</h3>
               <p className="text-gray-500 mt-2">
-                New deliveries will appear here when restaurants
-                mark orders as ready.
+                New offers will pop up here as soon as one becomes available.
               </p>
             </div>
           ) : (
-            <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-5">
-
-              {availableDeliveries.map((order) => (
-                <div
-                  key={order.id}
-                  className="bg-white rounded-2xl shadow p-6"
-                >
-
-                  <div className="flex justify-between items-start gap-4">
-
-                    <div>
-                      <h3 className="font-black text-lg">
-                        {order.restaurantName}
-                      </h3>
-
-                      <p className="text-sm text-gray-500 mt-1">
-                        Order #{order.id}
-                      </p>
-                    </div>
-
-                    <div className="text-green-600 font-black">
-                      ₦{order.total.toLocaleString()}
-                    </div>
-
-                  </div>
-
-                  <div className="border-t my-4" />
-
-                  <div className="space-y-3">
-
-                    <div className="flex items-center gap-3 text-gray-600">
-                      <FaMapMarkerAlt className="text-[#E8491D]" />
-                      <span>
-                        Pickup: {order.restaurantName}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-3 text-gray-600">
-                      <FaMapMarkerAlt className="text-[#3B6255]" />
-                      <span>
-                        Customer: {order.customerName}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-3 text-gray-500 text-sm">
-                      <FaClock />
-                      <span>
-                        {new Date(
-                          order.placedAt
-                        ).toLocaleString()}
-                      </span>
-                    </div>
-
-                  </div>
-
-                  <div className="mt-4 bg-[#FBF6EE] rounded-xl p-3">
-                    <p className="font-bold text-sm mb-2">
-                      Items
-                    </p>
-
-                    {order.items.map((item, index) => (
-                      <div
-                        key={index}
-                        className="flex justify-between text-sm py-1"
-                      >
-                        <span>
-                          {item.name} × {item.quantity}
-                        </span>
-
-                        <span>
-                          ₦{(
-                            item.price * item.quantity
-                          ).toLocaleString()}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <button
-                    onClick={() => acceptDelivery(order.id)}
-                    className="mt-5 w-full bg-[#E8491D] hover:bg-[#C73A15] text-white py-3 rounded-xl font-bold transition"
-                  >
-                    Accept Delivery
-                  </button>
-
-                </div>
-              ))}
-
-            </div>
-          )}
-        </section>
-
-        {/* My Deliveries */}
-        <section className="mt-8">
-
-          <h2 className="text-2xl font-black text-[#1F1B16] mb-5">
-            My Deliveries
-          </h2>
-
-          {myDeliveries.length === 0 ? (
-            <div className="bg-white rounded-2xl shadow p-8 text-center text-gray-500">
-              You haven't accepted any deliveries yet.
-            </div>
-          ) : (
             <div className="space-y-4">
-
-              {myDeliveries.map((order) => (
-  <div
-    key={order.id}
-    className="bg-white rounded-2xl shadow p-6"
-  >
-    {/* Live delivery map */}
-{order.customerLatitude && order.customerLongitude && (
-  <div className="mb-5">
-    <LiveDeliveryMap
-      customerLatitude={order.customerLatitude}
-      customerLongitude={order.customerLongitude}
-      riderLatitude={order.riderLatitude}
-      riderLongitude={order.riderLongitude}
-    />
-  </div>
-)}
-
-    {/* Order information */}
-    <div className="flex justify-between items-start gap-4">
-
-      <div>
-        <h3 className="font-black text-lg">
-          {order.restaurantName}
-        </h3>
-
-        <p className="text-sm text-gray-500 mt-1">
-          Customer: {order.customerName}
-        </p>
-
-        <p className="text-sm text-gray-500 mt-1">
-          Order #{order.id}
-        </p>
-      </div>
-
-      <div className="text-right">
-
-        <span className="inline-block bg-[#FCF0D6] text-[#9C7311] px-3 py-1 rounded-full text-sm font-bold">
-          {order.deliveryStatus}
-        </span>
-
-        <p className="font-black mt-2">
-          ₦{order.total.toLocaleString()}
-        </p>
-
-      </div>
-
-    </div>
-
-    {/* Delivery progress */}
-    <div className="mt-5 grid grid-cols-4 gap-2">
-
-      <div
-        className={`text-center p-2 rounded-lg text-xs font-bold ${
-          [
-            "Accepted by Rider",
-            "Picked Up",
-            "Out for Delivery",
-            "Delivered",
-          ].includes(order.deliveryStatus)
-            ? "bg-[#E3EAE6] text-[#3B6255]"
-            : "bg-gray-100 text-gray-400"
-        }`}
-      >
-        Accepted
-      </div>
-
-      <div
-        className={`text-center p-2 rounded-lg text-xs font-bold ${
-          [
-            "Picked Up",
-            "Out for Delivery",
-            "Delivered",
-          ].includes(order.deliveryStatus)
-            ? "bg-[#E3EAE6] text-[#3B6255]"
-            : "bg-gray-100 text-gray-400"
-        }`}
-      >
-        Pickup
-      </div>
-
-      <div
-        className={`text-center p-2 rounded-lg text-xs font-bold ${
-          [
-            "Out for Delivery",
-            "Delivered",
-          ].includes(order.deliveryStatus)
-            ? "bg-[#E3EAE6] text-[#3B6255]"
-            : "bg-gray-100 text-gray-400"
-        }`}
-      >
-        On the Way
-      </div>
-
-      <div
-        className={`text-center p-2 rounded-lg text-xs font-bold ${
-          order.deliveryStatus === "Delivered"
-            ? "bg-[#E3EAE6] text-[#3B6255]"
-            : "bg-gray-100 text-gray-400"
-        }`}
-      >
-        Delivered
-      </div>
-
-    </div>
-
-    {/* Action buttons */}
-    <div className="mt-5">
-
-      {order.deliveryStatus === "Accepted by Rider" && (
-        <button
-          onClick={() =>
-            updateDeliveryStatus(
-              order.id,
-              "Picked Up"
-            )
-          }
-          className="w-full bg-[#F4B740] hover:bg-[#DFA52F] text-[#1F1B16] py-3 rounded-xl font-bold transition"
-        >
-          📦 Pick Up Food
-        </button>
-      )}
-
-      {order.deliveryStatus === "Picked Up" && (
-        <button
-          onClick={() =>
-            updateDeliveryStatus(
-              order.id,
-              "Out for Delivery"
-            )
-          }
-          className="w-full bg-[#3B6255] hover:bg-[#2E4C42] text-white py-3 rounded-xl font-bold transition"
-        >
-          🏍️ Go to Customer
-        </button>
-      )}
-
-      {order.deliveryStatus === "Out for Delivery" && (
-        <button
-          onClick={() =>
-            updateDeliveryStatus(
-              order.id,
-              "Delivered"
-            )
-          }
-          className="w-full bg-[#E8491D] hover:bg-[#C73A15] text-white py-3 rounded-xl font-bold transition"
-        >
-          ✓ Mark as Delivered
-        </button>
-      )}
-
-      {order.deliveryStatus === "Delivered" && (
-        <div className="bg-[#E3EAE6] text-[#3B6255] rounded-xl p-4 text-center font-bold">
-          ✓ Delivery Completed
-        </div>
-      )}
-
-    </div>
-
-  </div>
-))}
-
+              {myBatch.map((d) =>
+                d.type === "food" ? (
+                  <FoodBatchCard
+                    key={d.poolId}
+                    delivery={d}
+                    onCancel={handleCancelPickup}
+                    onAdvance={handleAdvanceFood}
+                  />
+                ) : (
+                  <CourierBatchCard
+                    key={d.poolId}
+                    delivery={d}
+                    onCancel={handleCancelPickup}
+                    onAdvance={handleAdvanceCourier}
+                  />
+                )
+              )}
             </div>
           )}
-
         </section>
 
         {/* Earnings History */}
         <section className="mt-8">
-
           <div className="flex items-center justify-between mb-5">
             <div>
-              <h2 className="text-2xl font-black text-[#1F1B16]">
-                Earnings History
-              </h2>
-
+              <h2 className="text-2xl font-black text-[#1F1B16]">Earnings History</h2>
               <p className="text-gray-500 mt-1">
                 Money earned from completed deliveries.
               </p>
             </div>
-
             <div className="bg-[#E3EAE6] text-[#3B6255] px-4 py-2 rounded-full font-bold">
               ₦{earnings.toLocaleString()}
             </div>
           </div>
 
-          {myDeliveries.filter(
-            (order) => order.deliveryStatus === "Delivered" && order.riderPaid
-          ).length === 0 ? (
-
+          {myCompleted.length === 0 ? (
             <div className="bg-white rounded-2xl shadow p-8 text-center">
-
-              <FaMoneyBillWave
-                className="mx-auto text-gray-300 mb-4"
-                size={35}
-              />
-
-              <h3 className="text-lg font-bold">
-                No Earnings Yet
-              </h3>
-
-              <p className="text-gray-500 mt-2">
-                Complete a delivery to start earning.
-              </p>
-
+              <FaMoneyBillWave className="mx-auto text-gray-300 mb-4" size={35} />
+              <h3 className="text-lg font-bold">No Earnings Yet</h3>
+              <p className="text-gray-500 mt-2">Complete a delivery to start earning.</p>
             </div>
-
           ) : (
-
             <div className="bg-white rounded-2xl shadow overflow-hidden">
-
-              {myDeliveries
-                .filter(
-                  (order) =>
-                    order.deliveryStatus === "Delivered" &&
-                    order.riderPaid
-                )
-                .map((order) => (
-
-                  <div
-                    key={order.id}
-                    className="flex items-center justify-between gap-4 p-5 border-b last:border-b-0"
-                  >
-
-                    <div>
-
-                      <p className="font-bold text-[#1F1B16]">
-                        {order.restaurantName}
-                      </p>
-
-                      <p className="text-sm text-gray-500 mt-1">
-                        Order #{order.id}
-                      </p>
-
-                      <p className="text-xs text-gray-400 mt-1">
-                        {new Date(
-                          order.placedAt
-                        ).toLocaleString()}
-                      </p>
-
-                    </div>
-
-                    <div className="text-right">
-
-                      <p className="text-green-600 font-black text-lg">
-                        +₦{(
-                          order.riderEarnings || 0
-                        ).toLocaleString()}
-                      </p>
-
-                      <p className="text-xs text-gray-500">
-                        Delivery fee
-                      </p>
-
-                    </div>
-
+              {myCompleted.map((d) => (
+                <div
+                  key={d.poolId}
+                  className="flex items-center justify-between gap-4 p-5 border-b last:border-b-0"
+                >
+                  <div>
+                    <p className="font-bold text-[#1F1B16]">{d.title}</p>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {d.type === "food" ? "Food delivery" : "Courier delivery"}
+                    </p>
                   </div>
-
-                ))}
-
+                  <div className="text-right">
+                    <p className="text-green-600 font-black text-lg">
+                      +₦{Number(d.fee || 0).toLocaleString()}
+                    </p>
+                    <p className="text-xs text-gray-500">Delivery fee</p>
+                  </div>
+                </div>
+              ))}
             </div>
-
           )}
-
         </section>
-
-      
       </main>
     </div>
   );
 }
 
-export default Rider;
+// --- Batch cards ---------------------------------------------------------
+
+function FoodBatchCard({ delivery, onCancel, onAdvance }) {
+  const order = delivery.raw;
+  const status = delivery.workflowStatus;
+
+  return (
+    <div className="bg-white rounded-2xl shadow p-6">
+      <div className="flex justify-between items-start gap-4">
+        <div>
+          <h3 className="font-black text-lg">{order.restaurantName}</h3>
+          <p className="text-sm text-gray-500 mt-1">Customer: {order.customerName}</p>
+          <p className="text-sm text-gray-500 mt-1">Order #{order.id}</p>
+        </div>
+        <div className="text-right">
+          <span className="inline-block bg-[#FCF0D6] text-[#9C7311] px-3 py-1 rounded-full text-sm font-bold">
+            {status}
+          </span>
+          <p className="font-black mt-2">₦{order.total.toLocaleString()}</p>
+        </div>
+      </div>
+
+      <div className="mt-5 grid grid-cols-4 gap-2">
+        {FOOD_STEP_LABELS.map((label, i) => {
+          const isActive = FOOD_STEPS.indexOf(status) >= i;
+          return (
+            <div
+              key={label}
+              className={`text-center p-2 rounded-lg text-xs font-bold ${
+                isActive ? "bg-[#E3EAE6] text-[#3B6255]" : "bg-gray-100 text-gray-400"
+              }`}
+            >
+              {label}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-5 space-y-2">
+        {status === "Accepted by Rider" && (
+          <>
+            <button
+              onClick={() => onAdvance(delivery.poolId, "Picked Up")}
+              className="w-full bg-[#F4B740] hover:bg-[#DFA52F] text-[#1F1B16] py-3 rounded-xl font-bold transition"
+            >
+              📦 Pick Up Food
+            </button>
+            <button
+              onClick={() => onCancel(delivery.poolId)}
+              className="w-full bg-white border border-red-200 text-red-500 hover:bg-red-50 py-2.5 rounded-xl font-bold transition"
+            >
+              Cancel Pickup
+            </button>
+          </>
+        )}
+
+        {status === "Picked Up" && (
+          <button
+            onClick={() => onAdvance(delivery.poolId, "Out for Delivery")}
+            className="w-full bg-[#3B6255] hover:bg-[#2E4C42] text-white py-3 rounded-xl font-bold transition"
+          >
+            🏍️ Go to Customer
+          </button>
+        )}
+
+        {status === "Out for Delivery" && (
+          <button
+            onClick={() => onAdvance(delivery.poolId, "Delivered")}
+            className="w-full bg-[#E8491D] hover:bg-[#C73A15] text-white py-3 rounded-xl font-bold transition"
+          >
+            ✓ Mark as Delivered
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CourierBatchCard({ delivery, onCancel, onAdvance }) {
+  const order = delivery.raw;
+  const status = delivery.workflowStatus;
+
+  return (
+    <div className="bg-white rounded-2xl shadow p-6">
+      <div className="flex justify-between items-start gap-4">
+        <div>
+          <h3 className="font-black text-lg flex items-center gap-2">
+            <FaBoxOpen className="text-[#3B6255]" /> Package Delivery
+          </h3>
+          <p className="text-sm text-gray-500 mt-1">Customer: {order.customerName}</p>
+          <p className="text-sm text-gray-500 mt-1">Order #{order.id}</p>
+        </div>
+        <div className="text-right">
+          <span className="inline-block bg-[#FCF0D6] text-[#9C7311] px-3 py-1 rounded-full text-sm font-bold">
+            {status}
+          </span>
+          {order.deliveryFee ? (
+            <p className="font-black mt-2">
+              ₦{Number(order.deliveryFee).toLocaleString()}
+            </p>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="mt-4 space-y-2 text-sm text-gray-600">
+        <div className="flex items-center gap-2">
+          <FaMapMarkerAlt className="text-[#3B6255]" size={13} />
+          Pickup: {order.pickupAddress}
+        </div>
+        <div className="flex items-center gap-2">
+          <FaMapMarkerAlt className="text-[#E8491D]" size={13} />
+          Drop-off: {order.destinationAddress}
+        </div>
+      </div>
+
+      <div className="mt-5 space-y-2">
+        {status === "Rider Assigned" && (
+          <button
+            onClick={() => onCancel(delivery.poolId)}
+            className="w-full bg-white border border-red-200 text-red-500 hover:bg-red-50 py-2.5 rounded-xl font-bold transition"
+          >
+            Cancel Pickup
+          </button>
+        )}
+
+        {(status === "Rider Assigned" || status === "Out for Delivery") && (
+          <button
+            onClick={() => onAdvance(delivery.poolId, "Delivered")}
+            className="w-full bg-[#E8491D] hover:bg-[#C73A15] text-white py-3 rounded-xl font-bold transition"
+          >
+            ✓ Mark as Delivered
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default RiderDashboard;

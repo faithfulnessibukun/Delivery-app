@@ -5,7 +5,8 @@
 //
 // A "poolId" is how the dashboard refers to a delivery regardless of
 // type: "food-<id>" or "courier-<id>". Every function below that takes
-// a poolId parses it back into the original array + raw id internally.
+// a poolId parses it back into the original array + raw id (a string —
+// see idGenerator.js) internally.
 
 const FOOD_KEY = "orders";
 const COURIER_KEY = "courierOrders";
@@ -26,6 +27,10 @@ function setCourierOrders(orders) {
   localStorage.setItem(COURIER_KEY, JSON.stringify(orders));
 }
 
+// poolIds look like "food-<id>" or "courier-<id>". Since generateId()
+// produces ids that themselves contain a dash (e.g. "1737382920123-a8f3k2"),
+// we only split on the FIRST dash — everything after it is the raw id,
+// dashes and all.
 function splitPoolId(poolId) {
   const idx = poolId.indexOf("-");
   return [poolId.slice(0, idx), poolId.slice(idx + 1)];
@@ -104,8 +109,7 @@ export function getMyCompleted(riderId) {
 // false if it was already taken / no longer available (e.g. another
 // rider/tab accepted it first, or the vendor cancelled it).
 export function acceptDelivery(poolId, rider) {
-  const [type, rawIdStr] = splitPoolId(poolId);
-  const rawId = Number(rawIdStr);
+  const [type, rawId] = splitPoolId(poolId);
 
   if (type === "food") {
     const orders = getFoodOrders();
@@ -157,8 +161,7 @@ export function acceptDelivery(poolId, rider) {
 // Rider backs out before pickup — delivery returns to the pool for
 // everyone else to see again.
 export function cancelDelivery(poolId) {
-  const [type, rawIdStr] = splitPoolId(poolId);
-  const rawId = Number(rawIdStr);
+  const [type, rawId] = splitPoolId(poolId);
 
   if (type === "food") {
     const orders = getFoodOrders();
@@ -201,8 +204,7 @@ export function cancelDelivery(poolId) {
 // Moves one delivery in the rider's batch to a new workflow status
 // (Picked Up / Out for Delivery / Delivered, etc).
 export function updateDeliveryStatus(poolId, newStatus) {
-  const [type, rawIdStr] = splitPoolId(poolId);
-  const rawId = Number(rawIdStr);
+  const [type, rawId] = splitPoolId(poolId);
 
   if (type === "food") {
     const orders = getFoodOrders();
@@ -229,8 +231,7 @@ export function updateDeliveryStatus(poolId, newStatus) {
 // don't double-count earnings). Returns the fee amount that was paid,
 // or 0 if it was already paid / had no fee.
 export function markPaidIfNeeded(poolId) {
-  const [type, rawIdStr] = splitPoolId(poolId);
-  const rawId = Number(rawIdStr);
+  const [type, rawId] = splitPoolId(poolId);
 
   if (type === "food") {
     const orders = getFoodOrders();

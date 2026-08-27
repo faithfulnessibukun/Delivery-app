@@ -17,6 +17,7 @@ import CustomerNav from "../components/CustomerNav";
 import MOCK_MENUS from "../data/mockMenus";
 import { useCart } from "../context/CartContext";
 import { CURRENT_USER_KEYS } from "../utils/storage";
+import { generateId } from "../utils/idGenerator";
 
 // Cycle of accent colors from the Chop Chop palette — used to give each
 // category / restaurant ribbon a distinct, deliberate identity instead
@@ -141,7 +142,7 @@ function CustomerHome() {
       const customerLongitude = position.coords.longitude;
 
       const courierOrder = {
-        id: Date.now(),
+        id: generateId(),
 
         // Customer information
         customerId: currentUser?.id || null,

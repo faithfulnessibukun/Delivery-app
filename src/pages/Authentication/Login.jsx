@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { FaUser, FaStore,FaMotorcycle, FaPepperHot, FaEye, FaEyeSlash } from "react-icons/fa";
 import { CURRENT_USER_KEYS } from "../../utils/storage";
+import { generateId } from "../../utils/idGenerator";
 
 // This one page handles both logging in and registering a new account —
 // which form shows is controlled by the `isLogin` flag below, flipped by
@@ -100,7 +101,7 @@ function Login() {
     }
 
     const newUser = {
-      id: Date.now(),
+      id: generateId(),
       fullName,
       email,
       phone,

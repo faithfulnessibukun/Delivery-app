@@ -4,6 +4,7 @@ import { FaTimes, FaMinus, FaPlus, FaTrash, FaShoppingBag } from "react-icons/fa
 import toast from "react-hot-toast";
 import { useCart } from "../context/CartContext";
 import { getStoredArray, CURRENT_USER_KEYS } from "../utils/storage";
+import { generateId } from "../utils/idGenerator";
 
 // The slide-in cart panel. It's rendered once in App.jsx (outside the
 // routes) so it can appear on top of any page. It reads/writes its state
@@ -47,7 +48,7 @@ function CartDrawer() {
   // denied/blocked/timed-out location prompt can't silently drop the order.
   const saveOrder = (customerLatitude, customerLongitude) => {
     const order = {
-      id: Date.now(),
+      id: generateId(),
 
       // The vendor who owns the food in this order
       vendorId: cart[0].vendorId,

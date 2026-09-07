@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { FaUser, FaStore,FaMotorcycle, FaPepperHot, FaEye, FaEyeSlash } from "react-icons/fa";
+import { FaUser, FaStore,FaMotorcycle, FaMapPin, FaEye, FaEyeSlash } from "react-icons/fa";
 import { CURRENT_USER_KEYS } from "../../utils/storage";
 import { generateId } from "../../utils/idGenerator";
 
@@ -141,15 +141,17 @@ function Login() {
       <div className="relative w-full max-w-md">
         {/* Brand mark */}
         <div className="flex flex-col items-center mb-6">
-          <div className="w-16 h-16 rounded-2xl bg-[#E8491D] flex items-center justify-center shadow-[0_8px_0_0_#A8300F] rotate-3">
-            <FaPepperHot className="text-[#FBF6EE]" size={26} />
+          <div className="flex items-center gap-4 mb-2">
+            <h1
+              className="text-4xl font-black text-[#FBF6EE] tracking-tight"
+              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+            >
+              Check<span className="text-[#F4B740]">Out</span>
+            </h1>
+            <div className="w-14 h-14 rounded-2xl bg-[#E8491D] flex items-center justify-center shadow-[0_6px_0_0_#A8300F]">
+              <FaMapPin className="text-[#FBF6EE]" size={24} />
+            </div>
           </div>
-          <h1
-            className="text-4xl font-black text-[#FBF6EE] mt-5 tracking-tight"
-            style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-          >
-            NEW<span className="text-[#F4B740]">AGE</span>
-          </h1>
           <p className="text-[#C9C2B4] text-sm mt-2 text-center">
             {isLogin
               ? "Sign in — your next plate is waiting"

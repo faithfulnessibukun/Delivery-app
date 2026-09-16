@@ -11,7 +11,7 @@ import {
 import toast from "react-hot-toast";
 import RiderSidebar from "../components/RiderSidebar";
 import { getCurrentUser } from "../utils/supabaseStorage";
-import { getMyCompleted } from "../utils/deliveryPool";
+import { getMyCompleted } from "../utils/deliveryPools";
 
 
 function RiderCompletedDeliveries() {

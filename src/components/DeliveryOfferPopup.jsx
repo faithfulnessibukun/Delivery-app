@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { FaBoxOpen, FaMapMarkerAlt, FaMotorcycle } from "react-icons/fa";
-import { OFFER_WINDOW_SECONDS } from "../utils/deliveryPool";
+import { OFFER_WINDOW_SECONDS } from "../utils/deliveryPools";
 
 // A single full-screen offer card. The parent (RiderDashboard) owns
 // which delivery is being offered right now — this component just

@@ -24,7 +24,7 @@ import {
   updateDeliveryStatus,
   markPaidIfNeeded,
   pushRiderLocationToBatch,
-} from "../utils/deliveryPool";
+} from "../utils/deliveryPools";
 
 // How long (ms) an offer this rider ignored/let expire stays hidden
 // from them before it's eligible to be shown again.

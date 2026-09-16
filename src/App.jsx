@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Routes, Route } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
+import { Analytics } from "@vercel/analytics/react";
 import Login from "./pages/Authentication/Login";
 import Dashboard from "./pages/Dashboard";
 import Menu from "./pages/Menu";
@@ -33,6 +34,7 @@ import RiderCompletedDeliveries from "./pages/RiderCompletedDeliveries";
 function App() {
   return (
     <CartProvider>
+      <Analytics />
       <Toaster position="top-center" />
       <CartDrawer />
       <Routes>

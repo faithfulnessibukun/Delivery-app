@@ -12,7 +12,7 @@ import toast from "react-hot-toast";
 import RiderSidebar from "../components/RiderSidebar";
 import { getCurrentUser } from "../utils/supabaseStorage";
 import { getMyCompleted } from "../utils/deliveryPool";
-import deliverypool from "../utils/deliveryPool";
+
 
 function RiderCompletedDeliveries() {
   const navigate = useNavigate();

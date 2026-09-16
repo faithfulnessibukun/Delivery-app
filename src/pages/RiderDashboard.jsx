@@ -13,7 +13,7 @@ import LiveDeliveryMap from "../components/LiveDeliveryMap";
 import DeliveryOfferPopup from "../components/DeliveryOfferPopup";
 import { supabase } from "../lib/supabase";
 import { getCurrentUser } from "../utils/supabaseStorage";
-import deliverypool from "../utils/deliverypool";
+
 import {
   MAX_BATCH_SIZE,
   getAvailableForOffers,

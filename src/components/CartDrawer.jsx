@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { FaTimes, FaMinus, FaPlus, FaTrash, FaShoppingBag } from "react-icons/fa";
 import toast from "react-hot-toast";
 import { useCart } from "../context/CartContext";
-import { getStoredArray, CURRENT_USER_KEYS } from "../utils/storage";
+import { getCurrentUser, createOrder } from "../utils/supabaseStorage";
 import { generateId } from "../utils/idGenerator";
 
 // The slide-in cart panel. It's rendered once in App.jsx (outside the
@@ -22,111 +22,110 @@ function CartDrawer() {
 
   // Increases/decreases one item's quantity by `delta` (+1 or -1).
   // If quantity would drop to 0 or below, the item is removed entirely.
-  const changeQuantity = (index, delta) => {
+  const changeQuantity = async (index, delta) => {
     const nextCart = cart
       .map((item, i) =>
         i === index ? { ...item, quantity: item.quantity + delta } : item
       )
       .filter((item) => item.quantity > 0);
-    updateCart(nextCart);
+    await updateCart(nextCart);
   };
 
-  const removeItem = (index) => {
-    updateCart(cart.filter((_, i) => i !== index));
+  const removeItem = async (index) => {
+    await updateCart(cart.filter((_, i) => i !== index));
   };
 
-  // "Placing an order" here just means: save the current cart as a new
-  // entry in localStorage's "orders" list, then empty the cart. There's
+  // "Placing an order" here means: save the current cart as a new
+  // entry in Supabase's "orders" table, then empty the cart. There's
   // no payment step — this is a demo/prototype flow.
-  const handlePlaceOrder = () => {
-  if (cart.length === 0) return;
+  const handlePlaceOrder = async () => {
+    if (cart.length === 0) return;
 
-  const orders = getStoredArray("orders");
-  const currentUser = JSON.parse(localStorage.getItem(CURRENT_USER_KEYS.customer)) || null;
+    const currentUser = await getCurrentUser();
 
-  // Saves the order regardless of whether GPS location was obtained, so a
-  // denied/blocked/timed-out location prompt can't silently drop the order.
-  const saveOrder = (customerLatitude, customerLongitude) => {
-    const order = {
-      id: generateId(),
+    // Saves the order regardless of whether GPS location was obtained, so a
+    // denied/blocked/timed-out location prompt can't silently drop the order.
+    const saveOrder = async (customerLatitude, customerLongitude) => {
+      const order = {
+        id: generateId(),
 
-      // The vendor who owns the food in this order
-      vendorId: cart[0].vendorId,
+        // The vendor who owns the food in this order
+        vendorId: cart[0].vendorId,
 
-      // Restaurant name
-      restaurantName: cart[0].restaurantName,
+        // Restaurant name
+        restaurantName: cart[0].restaurantName,
 
-      pickupAddress: cart[0].restaurantAddress || " ",
+        pickupAddress: cart[0].restaurantAddress || " ",
 
-      // Customer who placed the order
-      customerId: currentUser?.id || null,
-      customerName: currentUser?.fullName || "Guest",
-      customerphone: currentUser?.phone || "N/A",
+        // Customer who placed the order
+        customerId: currentUser?.id || null,
+        customerName: currentUser?.full_name || "Guest",
+        customerphone: currentUser?.phone || "N/A",
 
-      // All food items ordered
-      items: cart,
+        // All food items ordered
+        items: cart,
 
-      // Total price
-      total,
+        // Total price
+        total,
 
-      // Order status
-      status: "Placed",
+        // Order status
+        status: "Placed",
 
-      // Time order was placed
-      placedAt: Date.now(),
+        // Time order was placed
+        placedAt: new Date().toISOString(),
 
-      // Rider information
-      riderId: null,
-      riderName: null,
+        // Rider information
+        riderId: null,
+        riderName: null,
 
-      // Rider earnings for this delivery — set by the vendor when they
-      // mark the order Ready (see VendorOrders.jsx).
-      riderEarnings: null,
+        // Rider earnings for this delivery — set by the vendor when they
+        // mark the order Ready (see VendorOrders.jsx).
+        riderEarnings: null,
 
-      // Customer's live GPS location (null if unavailable/denied)
-      customerLatitude,
-      customerLongitude,
+        // Customer's live GPS location (null if unavailable/denied)
+        customerLatitude,
+        customerLongitude,
 
-      // Rider tracking information
-      riderLatitude: null,
-      riderLongitude: null,
-      deliveryStatus: "Waiting for restaurant to confirm order",
+        // Rider tracking information
+        riderLatitude: null,
+        riderLongitude: null,
+        deliveryStatus: "Waiting for restaurant to confirm order",
+      };
+
+      try {
+        await createOrder(order);
+        await updateCart([]);
+        toast.success("Order placed!");
+        closeCart();
+        navigate("/orders");
+      } catch (error) {
+        console.error("Error placing order:", error);
+        toast.error("Failed to place order. Please try again.");
+      }
     };
 
-    localStorage.setItem(
-      "orders",
-      JSON.stringify([order, ...orders])
-    );
-    window.dispatchEvent(new Event("ordersUpdated"));
-
-    updateCart([]);
-    toast.success("Order placed!");
-    closeCart();
-    navigate("/orders");
-  };
-
-  if (!navigator.geolocation) {
-    saveOrder(null, null);
-    return;
-  }
-
-  navigator.geolocation.getCurrentPosition(
-    (position) => {
-      saveOrder(position.coords.latitude, position.coords.longitude);
-    },
-    () => {
-      toast.error(
-        "Couldn't get your location — placing order without live tracking."
-      );
-      saveOrder(null, null);
-    },
-    {
-      enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 0,
+    if (!navigator.geolocation) {
+      await saveOrder(null, null);
+      return;
     }
-  );
-};
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        saveOrder(position.coords.latitude, position.coords.longitude);
+      },
+      () => {
+        toast.error(
+          "Couldn't get your location — placing order without live tracking."
+        );
+        saveOrder(null, null);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      }
+    );
+  };
 
   return (
     <>

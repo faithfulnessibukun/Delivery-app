@@ -1,6 +1,6 @@
-import { NavLink,useNavigate } from "react-router-dom";
-import { FaTimes,FaSignOutAlt } from "react-icons/fa";
-import { CURRENT_USER_KEYS } from "../utils/storage";
+import { NavLink, useNavigate } from "react-router-dom";
+import { FaTimes, FaSignOutAlt } from "react-icons/fa";
+import { supabase } from "../lib/supabase";
 
 // The vendor-side navigation sidebar (Dashboard, Menu, Orders). On desktop
 // it's always visible; on mobile it slides in/out and `sidebarOpen` +
@@ -8,10 +8,11 @@ import { CURRENT_USER_KEYS } from "../utils/storage";
 function Sidebar({ sidebarOpen, setSidebarOpen }) {
   const navigate = useNavigate();
 
-const handleLogout = () => {
-  localStorage.removeItem(CURRENT_USER_KEYS.vendor);
-  navigate("/");
-};
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate("/");
+  };
+
   return (
     <>
       {/* Dark overlay behind the sidebar on mobile — tapping it closes
@@ -94,14 +95,14 @@ const handleLogout = () => {
           </li>
 
           <li className="pt-6">
-  <button
-    onClick={handleLogout}
-    className="w-full text-left p-2 rounded hover:bg-red-600 text-red-400 hover:text-white transition"
-  >
-    <FaSignOutAlt className="inline mr-2" />
-    Logout
-  </button>
-</li>
+            <button
+              onClick={handleLogout}
+              className="w-full text-left p-2 rounded hover:bg-red-600 text-red-400 hover:text-white transition"
+            >
+              <FaSignOutAlt className="inline mr-2" />
+              Logout
+            </button>
+          </li>
         </ul>
       </aside>
     </>

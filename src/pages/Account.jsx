@@ -1,22 +1,34 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaUserCircle, FaEnvelope, FaPhone, FaSignOutAlt, FaArrowLeft } from "react-icons/fa";
 import toast from "react-hot-toast";
 import CustomerNav from "../components/CustomerNav";
-import { CURRENT_USER_KEYS, getCurrentUser } from "../utils/storage";
+import { supabase } from "../lib/supabase";
+import { getCurrentUser } from "../utils/supabaseStorage";
 
 // Shows the logged-in user's basic info and a logout button. Works for
-// whichever role is actually signed in (customer/vendor/rider each have
-// their own localStorage key — see CURRENT_USER_KEYS).
+// whichever role is actually signed in (customer/vendor/rider).
 function Account() {
   const navigate = useNavigate();
-  const currentUser = getCurrentUser();
+  const [currentUser, setCurrentUser] = useState(null);
 
-  const handleLogout = () => {
-    if (currentUser?.role) {
-      localStorage.removeItem(CURRENT_USER_KEYS[currentUser.role]);
+  useEffect(() => {
+    const loadUser = async () => {
+      const user = await getCurrentUser();
+      setCurrentUser(user);
+    };
+    loadUser();
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      toast.success("Logged out.");
+      navigate("/");
+    } catch (error) {
+      console.error("Error logging out:", error);
+      toast.error("Failed to logout");
     }
-    toast.success("Logged out.");
-    navigate("/"); // back to the login screen
   };
 
   return (
@@ -40,7 +52,7 @@ function Account() {
         <div className="bg-white rounded-3xl shadow p-6 flex flex-col items-center text-center">
           <FaUserCircle className="text-[#D8CDB6]" size={72} />
           <h2 className="font-black text-xl mt-3 text-[#1F1B16]">
-            {currentUser?.fullName || "Guest"}
+            {currentUser?.full_name || "Guest"}
           </h2>
           <p className="text-sm text-[#8A8378] capitalize">
             {currentUser?.role || "Not logged in"}

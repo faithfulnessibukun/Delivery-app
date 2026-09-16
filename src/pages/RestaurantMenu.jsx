@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import {
   FaArrowLeft,
@@ -8,9 +8,9 @@ import {
   FaPlus,
 } from "react-icons/fa";
 import toast from "react-hot-toast";
-import MOCK_MENUS from "../data/mockMenus";
 import { useCart } from "../context/CartContext";
-import { getStoredArray } from "../utils/storage";
+import { supabase } from "../lib/supabase";
+import { getCart, saveCart, getCurrentUser } from "../utils/supabaseStorage";
 
 function RestaurantMenu() {
   const { vendorId } = useParams();
@@ -20,25 +20,56 @@ function RestaurantMenu() {
   const { refreshCart, openCart } = useCart();
 
   const [quantities, setQuantities] = useState({});
+  const [restaurantMenus, setRestaurantMenus] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Check whether mock data is enabled
-  const useMockData = useMemo(
-    () => localStorage.getItem("useMockData") === "true",
-    []
-  );
+  // Load this vendor's menu items from Supabase.
+  useEffect(() => {
+    const loadMenus = async () => {
+      const { data: restaurant } = await supabase
+        .from("restaurants")
+        .select("restaurant_id, name, address_line, logo_url")
+        .eq("vendor_id", vendorId)
+        .single();
 
-  // Get all menu items
-  const menus = useMemo(() => {
-    return useMockData ? MOCK_MENUS : getStoredArray("menus");
-  }, [useMockData]);
+      if (!restaurant) {
+        setRestaurantMenus([]);
+        setIsLoading(false);
+        return;
+      }
 
-  // IMPORTANT:
-  // Only get menu items belonging to THIS vendor
-  const restaurantMenus = useMemo(() => {
-    return menus.filter(
-      (menu) => String(menu.vendorId) === String(vendorId)
-    );
-  }, [menus, vendorId]);
+      const { data: items, error } = await supabase
+        .from("menu_items")
+        .select("*")
+        .eq("restaurant_id", restaurant.restaurant_id);
+
+      if (error) {
+        console.error("Error loading restaurant menu:", error);
+        setRestaurantMenus([]);
+        setIsLoading(false);
+        return;
+      }
+
+      const mapped = (items || []).map((item) => ({
+        id: item.menu_item_id,
+        vendorId,
+        restaurantName: restaurant.name,
+        restaurantAddress: restaurant.address_line,
+        image: restaurant.logo_url, // used as the header image below
+        itemImage: item.image_url,
+        name: item.name,
+        itemName: item.name,
+        description: item.description,
+        price: item.price,
+        category: item.category,
+      }));
+
+      setRestaurantMenus(mapped);
+      setIsLoading(false);
+    };
+
+    loadMenus();
+  }, [vendorId]);
 
   // Get restaurant information from the first menu item
   const restaurant = restaurantMenus[0];
@@ -60,53 +91,72 @@ function RestaurantMenu() {
   };
 
   // Add food to cart
-  const handleAddToCart = (item, itemKey) => {
-    const cart = getStoredArray("cart");
+  const handleAddToCart = async (item, itemKey) => {
+    try {
+      const user = await getCurrentUser();
+      if (!user) {
+        console.error("User not authenticated");
+        return;
+      }
 
-    const foodName =
-      item.foodName ||
-      item.name ||
-      item.itemName ||
-      "Menu item";
+      const cart = await getCart(user.id);
 
-    const newCartItem = {
-      vendorId: item.vendorId || vendorId,
+      const foodName =
+        item.foodName ||
+        item.name ||
+        item.itemName ||
+        "Menu item";
 
-      restaurantName:
-        item.restaurantName ||
-        vendorNameFromState ||
-        restaurant?.restaurantName ||
-        "Restaurant",
+      const newCartItem = {
+        vendorId: item.vendorId || vendorId,
 
-      itemId: item.id ?? itemKey,
+        restaurantName:
+          item.restaurantName ||
+          vendorNameFromState ||
+          restaurant?.restaurantName ||
+          "Restaurant",
 
-      name: foodName,
+        itemId: item.id ?? itemKey,
 
-      price: Number(item.price) || 0,
+        name: foodName,
 
-      quantity: getQuantity(itemKey),
+        price: Number(item.price) || 0,
 
-      image: item.itemImage || item.image || "",
+        quantity: getQuantity(itemKey),
 
-      addedAt: Date.now(),
-    };
+        image: item.itemImage || item.image || "",
 
-    cart.push(newCartItem);
+        addedAt: new Date().toISOString(),
+      };
 
-    localStorage.setItem("cart", JSON.stringify(cart));
+      cart.push(newCartItem);
 
-    refreshCart();
+      await saveCart(user.id, cart);
 
-    toast.success(`${foodName} added to cart!`);
+      toast.success(`${foodName} added to cart!`);
 
-    openCart();
+      await refreshCart();
 
-    // Reset quantity
-    setQuantities((prev) => ({
-      ...prev,
-      [itemKey]: 1,
-    }));
+      await openCart();
+
+      // Reset quantity
+      setQuantities((prev) => ({
+        ...prev,
+        [itemKey]: 1,
+      }));
+    } catch (error) {
+      console.error("Error adding to cart:", error);
+      toast.error("Failed to add item to cart");
+    }
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#FBF6EE] flex items-center justify-center">
+        <p className="text-[#8A8378]">Loading...</p>
+      </div>
+    );
+  }
 
   // If vendor has no menu
   if (!restaurant) {

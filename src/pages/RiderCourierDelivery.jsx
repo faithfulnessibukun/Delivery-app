@@ -6,42 +6,43 @@ import {
   FaCheckCircle,
 } from "react-icons/fa";
 import LiveDeliveryMap from "../components/LiveDeliveryMap";
-import { CURRENT_USER_KEYS } from "../utils/storage";
+import { getCourierOrders, updateCourierOrder, getCurrentUser } from "../utils/supabaseStorage";
 
 function RiderCourierDelivery() {
   const [order, setOrder] = useState(null);
   const [locationError, setLocationError] = useState("");
 
   // Get the courier order assigned to this rider
-  const loadOrder = () => {
-    const currentUser =
-      JSON.parse(localStorage.getItem(CURRENT_USER_KEYS.rider)) || null;
+  const loadOrder = async () => {
+    try {
+      const currentUser = await getCurrentUser();
+      if (!currentUser) return;
 
-    const orders =
-      JSON.parse(localStorage.getItem("courierOrders")) || [];
+      const orders = await getCourierOrders({ riderId: currentUser.id });
+      if (!orders || orders.length === 0) {
+        setOrder(null);
+        return;
+      }
 
-    if (!currentUser) return;
+      // Find the first non-delivered order assigned to this rider
+      const riderOrder = orders.find(
+        (item) => item.status !== "Delivered"
+      );
 
-    const riderOrder = orders.find(
-      (item) =>
-        item.riderId === currentUser.id &&
-        item.status !== "Delivered"
-    );
-
-    setOrder(riderOrder || null);
+      setOrder(riderOrder || null);
+    } catch (error) {
+      console.error("Error loading courier order:", error);
+      setOrder(null);
+    }
   };
 
   useEffect(() => {
     loadOrder();
 
-    window.addEventListener("courierOrdersUpdated", loadOrder);
+    // Poll for order updates every 5 seconds
+    const interval = setInterval(loadOrder, 5000);
 
-    return () => {
-      window.removeEventListener(
-        "courierOrdersUpdated",
-        loadOrder
-      );
-    };
+    return () => clearInterval(interval);
   }, []);
 
   // Start live rider GPS tracking
@@ -56,41 +57,32 @@ function RiderCourierDelivery() {
     }
 
     const watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        const riderLatitude = position.coords.latitude;
-        const riderLongitude = position.coords.longitude;
+      async (position) => {
+        try {
+          const riderLatitude = position.coords.latitude;
+          const riderLongitude = position.coords.longitude;
 
-        const orders =
-          JSON.parse(localStorage.getItem("courierOrders")) || [];
-
-        const updatedOrders = orders.map((item) => {
-          if (item.id !== order.id) {
-            return item;
-          }
-
-          return {
-            ...item,
+          // Update the order with new location
+          await updateCourierOrder(order.id, {
             riderLatitude,
             riderLongitude,
             status: "Out for Delivery",
-          };
-        });
+          });
 
-        localStorage.setItem(
-          "courierOrders",
-          JSON.stringify(updatedOrders)
-        );
-
-        const updatedOrder = updatedOrders.find(
-          (item) => item.id === order.id
-        );
-
-        setOrder(updatedOrder);
-
-        // Tell customer page that rider location changed
-        window.dispatchEvent(
-          new Event("courierOrdersUpdated")
-        );
+          // Update local state
+          setOrder((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  riderLatitude,
+                  riderLongitude,
+                  status: "Out for Delivery",
+                }
+              : null
+          );
+        } catch (error) {
+          console.error("Error updating location:", error);
+        }
       },
 
       (error) => {

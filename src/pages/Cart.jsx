@@ -11,8 +11,11 @@ function Cart() {
   const { openCart } = useCart();
 
   useEffect(() => {
-    openCart();
-    navigate("/customer-home", { replace: true });
+    const openAndNavigate = async () => {
+      await openCart();
+      navigate("/customer-home", { replace: true });
+    };
+    openAndNavigate();
   }, [navigate, openCart]);
 
   return null;

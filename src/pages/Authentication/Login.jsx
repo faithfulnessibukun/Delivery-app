@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { FaUser, FaStore,FaMotorcycle, FaMapPin, FaEye, FaEyeSlash } from "react-icons/fa";
-import { CURRENT_USER_KEYS } from "../../utils/storage";
-import { generateId } from "../../utils/idGenerator";
+import { FaUser, FaStore, FaMotorcycle, FaMapPin, FaEye, FaEyeSlash } from "react-icons/fa";
+import { supabase } from "../../lib/supabase";
 
 // This one page handles both logging in and registering a new account —
 // which form shows is controlled by the `isLogin` flag below, flipped by
@@ -11,11 +10,14 @@ import { generateId } from "../../utils/idGenerator";
 function Login() {
   // Not logged in on landing → open straight into the Register tab.
   const [isLogin, setIsLogin] = useState(false);
-  // "customer" or "vendor" — chosen on the Register form.
+  // "customer", "vendor", or "rider" — chosen on the Register form.
   const [role, setRole] = useState("customer");
   const [fullName, setFullName] = useState("");
   const [restaurantName, setRestaurantName] = useState("");
   const [restaurantAddress, setRestaurantAddress] = useState("");
+  const [licenseNumber, setLicenseNumber] = useState("");
+  const [vehicleType, setVehicleType] = useState("");
+  const [vehiclePlate, setVehiclePlate] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
@@ -24,46 +26,54 @@ function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
 
-  // If someone is already logged in, skip the login screen entirely.
-  // useEffect(() => {
-  //   const user = JSON.parse(localStorage.getItem("currentUser"));
-  //   if (!user) return;
-  //   navigate(user.role === "vendor" ? "/dashboard" : "/customer-home");
-  // }, [navigate]);
-
-  // Checks the typed email/password against every registered user in
-  // localStorage's "users" list. If one matches, save it under that role's
-  // own key (vendorCurrentUser/riderCurrentUser/customerCurrentUser — see
-  // CURRENT_USER_KEYS) so different roles can stay signed in independently,
-  // then send them to the right home screen for their role.
-  const handleSubmit = (e) => {
+  // Logs in against Supabase Auth, then looks up this user's role in our
+  // own `users` table so we know which home screen to send them to.
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
 
-    const users = JSON.parse(localStorage.getItem("users")) || [];
+    // Normalize so "John@Gmail.com" and "john@gmail.com " (stray space)
+    // are always treated as the same account.
+    const normalizedEmail = email.trim().toLowerCase();
 
-    const user = users.find(
-      (user) => user.email === email && user.password === password
-    );
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: normalizedEmail,
+      password,
+    });
 
-    if (!user) {
-      toast.error("Invalid email or password.");
+    if (error) {
+      toast.error(error.message);
+      setLoading(false);
       return;
     }
 
-    localStorage.setItem(CURRENT_USER_KEYS[user.role], JSON.stringify(user));
+    const { data: profile, error: profileError } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", data.user.id)
+      .single();
+
+    if (profileError || !profile) {
+      toast.error("Couldn't find your account details.");
+      setLoading(false);
+      return;
+    }
 
     toast.success("Login successful!");
 
-    if (user.role === "vendor") {
-  navigate("/dashboard");
-} else if (user.role === "rider") {
-  navigate("/rider-dashboard");
-} else {
-  navigate("/customer-home");
-}
+    if (profile.role === "vendor") {
+      navigate("/dashboard");
+    } else if (profile.role === "rider") {
+      navigate("/rider-dashboard");
+    } else {
+      navigate("/customer-home");
+    }
+
+    setLoading(false);
   };
 
   // Switches between the Login form and the Register form.
@@ -71,11 +81,10 @@ function Login() {
     setIsLogin(loginMode);
   };
 
-  // Validates the register form, then adds a brand-new user to
-  // localStorage's "users" list. Doesn't log the person in automatically —
-  // it just flips back to the Login tab so they can sign in with the
-  // account they just created.
-  const handleRegister = (e) => {
+  // Validates the register form, creates the Supabase Auth account, then
+  // creates matching rows in `users` and the role-specific table
+  // (customers / vendors + restaurants / riders).
+  const handleRegister = async (e) => {
     e.preventDefault();
 
     if (!fullName || !email || !phone || !password || !confirmPassword) {
@@ -91,33 +100,96 @@ function Login() {
       return;
     }
 
-    const users = JSON.parse(localStorage.getItem("users")) || [];
+    setLoading(true);
 
-    const existingUser = users.find((user) => user.email === email);
+    // Normalize so a stray capital letter or leading/trailing space
+    // can't slip past the "does this account already exist" check and
+    // create a near-duplicate account for the same person.
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedPhone = phone.trim();
+    const normalizedFullName = fullName.trim();
 
-    if (existingUser) {
-      toast.error("An account with this email already exists.");
+    // Step 1: create the auth account (handles password hashing/sessions)
+    const { data, error: authError } = await supabase.auth.signUp({
+      email: normalizedEmail,
+      password,
+    });
+
+    if (authError) {
+      toast.error(authError.message);
+      setLoading(false);
       return;
     }
 
-    const newUser = {
-      id: generateId(),
-      fullName,
-      email,
-      phone,
-      password,
+    const newUserId = data.user.id;
+
+    // Step 2: create the shared profile row
+    const { error: userError } = await supabase.from("users").insert({
+      id: newUserId,
+      full_name: normalizedFullName,
+      email: normalizedEmail,
+      phone: normalizedPhone,
       role,
-      restaurantName: role === "vendor" ? restaurantName : "",
-      restaurantAddress: role === "vendor" ? restaurantAddress : "",
-    };
+    });
 
-    users.push(newUser);
+    if (userError) {
+      toast.error(userError.message);
+      setLoading(false);
+      return;
+    }
 
-    localStorage.setItem("users", JSON.stringify(users));
+    // Step 3: create the role-specific row(s)
+    if (role === "customer") {
+      const { error } = await supabase.from("customers").insert({
+        customer_id: newUserId,
+      });
+      if (error) {
+        toast.error(error.message);
+        setLoading(false);
+        return;
+      }
+    }
+
+    if (role === "vendor") {
+      const { error: vendorError } = await supabase.from("vendors").insert({
+        vendor_id: newUserId,
+        business_name: restaurantName,
+      });
+      if (vendorError) {
+        toast.error(vendorError.message);
+        setLoading(false);
+        return;
+      }
+
+      const { error: restaurantError } = await supabase.from("restaurants").insert({
+        vendor_id: newUserId,
+        name: restaurantName,
+        address_line: restaurantAddress,
+      });
+      if (restaurantError) {
+        toast.error(restaurantError.message);
+        setLoading(false);
+        return;
+      }
+    }
+
+    if (role === "rider") {
+      const { error } = await supabase.from("riders").insert({
+        rider_id: newUserId,
+        license_number: licenseNumber || null,
+        vehicle_type: vehicleType || null,
+        vehicle_plate: vehiclePlate || null,
+      });
+      if (error) {
+        toast.error(error.message);
+        setLoading(false);
+        return;
+      }
+    }
 
     toast.success("Registration successful! You can now log in.");
-
     setIsLogin(true);
+    setLoading(false);
   };
 
   const inputClasses =
@@ -222,9 +294,10 @@ function Login() {
 
               <button
                 type="submit"
-                className="w-full bg-[#E8491D] text-white p-3.5 rounded-2xl hover:bg-[#C73A15] transition font-bold shadow-[0_6px_0_0_#A8300F] active:shadow-none active:translate-y-1.5"
+                disabled={loading}
+                className="w-full bg-[#E8491D] text-white p-3.5 rounded-2xl hover:bg-[#C73A15] transition font-bold shadow-[0_6px_0_0_#A8300F] active:shadow-none active:translate-y-1.5 disabled:opacity-50"
               >
-                Login
+                {loading ? "Signing in..." : "Login"}
               </button>
             </form>
           )}
@@ -272,18 +345,19 @@ function Login() {
                     <FaStore />
                     <span className="text-sm font-bold">Vendor</span>
                   </button>
+
                   <button
-  type="button"
-  onClick={() => setRole("rider")}
-  className={`flex flex-col items-center gap-2 rounded-2xl border-2 py-3.5 transition ${
-    role === "rider"
-      ? "border-[#F4B740] bg-[#FCF0D6] text-[#9C7311]"
-      : "border-[#EDE4D3] text-[#A8A096] hover:border-[#D8CDB6]"
-  }`}
->
-  <FaMotorcycle />
-  <span className="text-sm font-bold">Rider</span>
-</button>
+                    type="button"
+                    onClick={() => setRole("rider")}
+                    className={`flex flex-col items-center gap-2 rounded-2xl border-2 py-3.5 transition ${
+                      role === "rider"
+                        ? "border-[#F4B740] bg-[#FCF0D6] text-[#9C7311]"
+                        : "border-[#EDE4D3] text-[#A8A096] hover:border-[#D8CDB6]"
+                    }`}
+                  >
+                    <FaMotorcycle />
+                    <span className="text-sm font-bold">Rider</span>
+                  </button>
                 </div>
               </div>
 
@@ -307,6 +381,43 @@ function Login() {
                       placeholder="Restaurant Address"
                       value={restaurantAddress}
                       onChange={(e) => setRestaurantAddress(e.target.value)}
+                      className={inputClasses}
+                    />
+                  </div>
+                </>
+              )}
+
+              {role === "rider" && (
+                <>
+                  <div>
+                    <label className={labelClasses}>License Number (optional)</label>
+                    <input
+                      type="text"
+                      placeholder="License Number (optional)"
+                      value={licenseNumber}
+                      onChange={(e) => setLicenseNumber(e.target.value)}
+                      className={inputClasses}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={labelClasses}>Vehicle Type</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Motorcycle, Bicycle, Car"
+                      value={vehicleType}
+                      onChange={(e) => setVehicleType(e.target.value)}
+                      className={inputClasses}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={labelClasses}>Vehicle Plate Number</label>
+                    <input
+                      type="text"
+                      placeholder="Plate Number (optional)"
+                      value={vehiclePlate}
+                      onChange={(e) => setVehiclePlate(e.target.value)}
                       className={inputClasses}
                     />
                   </div>
@@ -377,9 +488,10 @@ function Login() {
 
               <button
                 type="submit"
-                className="w-full bg-[#E8491D] text-white p-3.5 rounded-2xl hover:bg-[#C73A15] transition font-bold shadow-[0_6px_0_0_#A8300F] active:shadow-none active:translate-y-1.5"
+                disabled={loading}
+                className="w-full bg-[#E8491D] text-white p-3.5 rounded-2xl hover:bg-[#C73A15] transition font-bold shadow-[0_6px_0_0_#A8300F] active:shadow-none active:translate-y-1.5 disabled:opacity-50"
               >
-                Register
+                {loading ? "Creating account..." : "Register"}
               </button>
             </form>
           )}

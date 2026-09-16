@@ -1,7 +1,7 @@
 import {  useEffect ,useState } from "react";
 import { FaReceipt, FaClock } from "react-icons/fa";
 import CustomerNav from "../components/CustomerNav";
-import { getStoredArray } from "../utils/storage";
+import { getOrders, getCurrentUser } from "../utils/supabaseStorage";
 import LiveDeliveryMap from "../components/LiveDeliveryMap";
 
 // order.status tracks the restaurant's progress (Placed/Preparing/Ready/
@@ -14,26 +14,37 @@ function displayStatus(order) {
 }
 
 // Shows every order the customer has placed so far. Orders are created in
-// CartDrawer.jsx's "Place Order" button and saved to localStorage — this
+// CartDrawer.jsx's "Place Order" button and saved to Supabase — this
 // page just reads that list back out and displays it, newest first.
 function Orders() {
-  const [orders, setOrders] = useState(() => getStoredArray("orders"));
+  const [orders, setOrders] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-useEffect(() => {
-  const loadOrders = () => {
-    setOrders(getStoredArray("orders"));
-  };
+  useEffect(() => {
+    const loadOrders = async () => {
+      try {
+        const user = await getCurrentUser();
+        if (!user) {
+          setOrders([]);
+          setIsLoading(false);
+          return;
+        }
+        const customerOrders = await getOrders({ customerId: user.id });
+        setOrders(customerOrders || []);
+      } catch (error) {
+        console.error("Error loading orders:", error);
+        setOrders([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-  // Load the latest orders/location immediately
-  loadOrders();
+    loadOrders();
 
-  // Listen for rider location updates
-  window.addEventListener("ordersUpdated", loadOrders);
-
-  return () => {
-    window.removeEventListener("ordersUpdated", loadOrders);
-  };
-}, []);
+    // Poll for updates every 5 seconds
+    const interval = setInterval(loadOrders, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#FBF6EE] pb-24">

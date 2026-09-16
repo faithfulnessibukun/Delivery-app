@@ -7,17 +7,15 @@ import {
   FaMapMarkerAlt,
   FaFire,
   FaLocationArrow,
-  FaFlask,
   FaCircle,
   FaBoxOpen,
   FaShoppingBag,
 } from "react-icons/fa";
 import AdvertVideo from "../assets/Advert.mp4";
 import CustomerNav from "../components/CustomerNav";
-import MOCK_MENUS from "../data/mockMenus";
 import { useCart } from "../context/CartContext";
-import { CURRENT_USER_KEYS } from "../utils/storage";
-import { generateId } from "../utils/idGenerator";
+import { supabase } from "../lib/supabase";
+import { getCurrentUser } from "../utils/supabaseStorage";
 
 // Cycle of accent colors from the Chop Chop palette — used to give each
 // category / restaurant ribbon a distinct, deliberate identity instead
@@ -29,13 +27,30 @@ const ACCENTS = [
   { solid: "bg-[#6B4A8A]", soft: "bg-[#EEE6F4]", text: "text-[#6B4A8A]" },
 ];
 
-
 // Returns a greeting that changes with the time of day.
 function getGreeting() {
   const hour = new Date().getHours();
   if (hour < 12) return "Good morning";
   if (hour < 17) return "Good afternoon";
   return "Good evening";
+}
+
+// Turns a raw Supabase menu_items row (with its joined restaurant) into
+// the flat shape the rest of this page already expects.
+function mapMenuItem(item) {
+  return {
+    id: item.menu_item_id,
+    vendorId: item.restaurants?.vendor_id,
+    restaurantId: item.restaurant_id,
+    restaurantName: item.restaurants?.name,
+    restaurantAddress: item.restaurants?.address_line,
+    image: item.image_url,
+    category: item.category,
+    rating: 4.5, // no ratings table yet — placeholder until reviews are built
+    name: item.name,
+    itemName: item.name,
+    price: item.price,
+  };
 }
 
 // This is the main screen customers land on after logging in.
@@ -53,11 +68,6 @@ function CustomerHome() {
     latitude: null,
     longitude: null,
   });
-  // "Mock data" lets us preview the page with sample restaurants instead of
-  // whatever is actually saved in localStorage — handy for demos/testing.
-  const [useMockData, setUseMockData] = useState(
-    () => localStorage.getItem("useMockData") === "true"
-  );
   // Fields for the "Send a Package" form further down the page.
   const [pickupAddress, setPickupAddress] = useState("");
   const [destinationAddress, setDestinationAddress] = useState("");
@@ -66,6 +76,12 @@ function CustomerHome() {
   // Shared cart state (item count + a function to open the cart drawer)
   // comes from CartContext so it works the same on every page.
   const { cartCount, openCart } = useCart();
+
+  // The logged-in customer, loaded from Supabase on mount.
+  const [currentUser, setCurrentUser] = useState(null);
+
+  // Real menu items pulled from Supabase.
+  const [menus, setMenus] = useState([]);
 
   // Refs let us scroll smoothly to the Restaurants / Send a Package
   // sections when the buttons inside the video are clicked.
@@ -79,143 +95,97 @@ function CustomerHome() {
   const canBookRider =
     pickupAddress.trim().length > 0 && destinationAddress.trim().length > 0;
 
-  // Who is logged in right now (saved during login). Used just for the
-  // "Good morning, <name>" greeting.
-  const currentUser = JSON.parse(localStorage.getItem(CURRENT_USER_KEYS.customer)) || null;
-  const customerLocation = currentUser?.id
-  ? JSON.parse(
-      localStorage.getItem(
-        `customerLocation_${currentUser.id}`
-      )
-    ) || null
-  : null;
-  const firstName = currentUser?.fullName?.split(" ")[0] || "there";
+  const firstName = currentUser?.full_name?.split(" ")[0] || "there";
 
-  // "menus" is the full list of individual menu items saved by vendors.
-  // Depending on the mock-data toggle, we either use that real data or
-  // the sample MOCK_MENUS list.
-  const [menus, setMenus] = useState(() =>
-    useMockData ? MOCK_MENUS : JSON.parse(localStorage.getItem("menus")) || []
-  );
-
-  // Keep `menus` in sync when toggling mock data or when another page
-  // updates localStorage (Menu.jsx dispatches a `menusUpdated` event).
+  // Load the logged-in user once on mount.
   useEffect(() => {
-    setMenus(useMockData ? MOCK_MENUS : JSON.parse(localStorage.getItem("menus")) || []);
-  }, [useMockData]);
+    const loadUser = async () => {
+      const user = await getCurrentUser();
+      setCurrentUser(user);
+    };
+    loadUser();
+  }, []);
 
+  // Loads real restaurants+menu items from Supabase.
   useEffect(() => {
-    const handler = () => {
-      setMenus(useMockData ? MOCK_MENUS : JSON.parse(localStorage.getItem("menus")) || []);
+    const loadMenus = async () => {
+      const { data, error } = await supabase
+        .from("menu_items")
+        .select(
+          `*, restaurants ( restaurant_id, name, address_line, vendor_id )`
+        )
+        .eq("is_available", true);
+
+      if (error) {
+        console.error("Error loading menu items:", error);
+        setMenus([]);
+        return;
+      }
+
+      setMenus((data || []).map(mapMenuItem));
     };
 
-    window.addEventListener("menusUpdated", handler);
-    return () => window.removeEventListener("menusUpdated", handler);
-  }, [useMockData]);
+    loadMenus();
 
-  const toggleMockData = () => {
-    const next = !useMockData;
-    setUseMockData(next);
-    localStorage.setItem("useMockData", String(next));
-  };
+    // Refresh periodically so newly added menu items show up without a
+    // manual page reload.
+    const interval = setInterval(loadMenus, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // "Send a Package" (courier) booking — saves directly to the
+  // courier_orders table in Supabase.
   const handleBookRider = () => {
-  if (!pickupAddress.trim() || !destinationAddress.trim()) {
-    alert("Please enter pickup and destination addresses.");
-    return;
-  }
-
-  const currentUser =
-    JSON.parse(localStorage.getItem(CURRENT_USER_KEYS.customer)) || null;
-
-  const courierOrders =
-    JSON.parse(localStorage.getItem("courierOrders")) || [];
-
-  // Get customer's current GPS location
-  if (!navigator.geolocation) {
-    alert("Your browser does not support GPS location.");
-    return;
-  }
-
-  navigator.geolocation.getCurrentPosition(
-    (position) => {
-      const customerLatitude = position.coords.latitude;
-      const customerLongitude = position.coords.longitude;
-
-      const courierOrder = {
-        id: generateId(),
-
-        // Customer information
-        customerId: currentUser?.id || null,
-        customerName: currentUser?.fullName || "Guest",
-        customerPhone: currentUser?.phone || "N/A",
-
-        // Package locations
-        pickupAddress,
-        destinationAddress,
-
-        // Customer GPS location
-        customerLatitude,
-        customerLongitude,
-
-        // Package information
-        packageSize,
-
-        // Delivery fee — set by the rider when they accept the job (see
-        // RiderCourierOrders.jsx).
-        deliveryFee: null,
-
-        // Courier status
-        status: "Waiting for Rider",
-
-        // Rider information
-        riderId: null,
-        riderName: null,
-
-        // Rider GPS location
-        riderLatitude: null,
-        riderLongitude: null,
-
-        // Time booked
-        createdAt: Date.now(),
-      };
-
-      localStorage.setItem(
-        "courierOrders",
-        JSON.stringify([
-          courierOrder,
-          ...courierOrders,
-        ])
-      );
-
-      // Tell other pages that a new courier order exists
-      window.dispatchEvent(
-        new Event("courierOrdersUpdated")
-      );
-
-      alert("Rider booked successfully!");
-
-      // Clear form
-      setPickupAddress("");
-      setDestinationAddress("");
-      setPackageSize("Small");
-    },
-
-    () => {
-      alert(
-        "Please allow location access so we can locate you for delivery."
-      );
-    },
-
-    {
-      enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 0,
+    if (!pickupAddress.trim() || !destinationAddress.trim()) {
+      alert("Please enter pickup and destination addresses.");
+      return;
     }
-  );
-};
 
+    if (!currentUser?.id) {
+      alert("Please log in to book a rider.");
+      return;
+    }
 
+    if (!navigator.geolocation) {
+      alert("Your browser does not support GPS location.");
+      return;
+    }
 
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { error } = await supabase.from("courier_orders").insert({
+          customer_id: currentUser.id,
+          pickup_address: pickupAddress,
+          destination_address: destinationAddress,
+          customer_lat: position.coords.latitude,
+          customer_lng: position.coords.longitude,
+          package_size: packageSize,
+          status: "Waiting for Rider",
+        });
+
+        if (error) {
+          alert("Couldn't book a rider: " + error.message);
+          return;
+        }
+
+        alert("Rider booked successfully!");
+
+        setPickupAddress("");
+        setDestinationAddress("");
+        setPackageSize("Small");
+      },
+      () => {
+        alert(
+          "Please allow location access so we can locate you for delivery."
+        );
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      }
+    );
+  };
 
   // Menu items belong to restaurants, but the same restaurant can have many
   // items. This turns the flat list of menu items into a de-duplicated list
@@ -277,124 +247,87 @@ function CustomerHome() {
 
   // Grab the current location on page load and reverse-geocode it into
   // a human readable label. Falls back gracefully if the user declines
-  // or the browser has no geolocation support.
+  // or the browser has no geolocation support. Saves the live coordinates
+  // to the customer's own row in Supabase (customers.lat/lng), so a
+  // rider/vendor viewing this order later can see where to deliver.
   useEffect(() => {
-  if (!("geolocation" in navigator)) {
-    setLocation({
-      status: "error",
-      label: "Location unavailable",
-      latitude: null,
-      longitude: null,
-    });
-    return;
-  }
-
-  const currentUser =
-    JSON.parse(localStorage.getItem(CURRENT_USER_KEYS.customer)) || null;
-
-  // Watch the customer's location continuously
-  const watchId = navigator.geolocation.watchPosition(
-    async ({ coords }) => {
-      const latitude = coords.latitude;
-      const longitude = coords.longitude;
-
-      try {
-        const res = await fetch(
-  `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
-);
-
-        const data = await res.json();
-
-        const area =
-          data?.address?.suburb ||
-          data?.address?.neighbourhood ||
-          data?.address?.city_district ||
-          data?.address?.city ||
-          data?.address?.town ||
-          "";
-
-        const city =
-          data?.address?.city ||
-          data?.address?.state ||
-          "";
-
-        const label =
-          [area, city].filter(Boolean).join(", ") ||
-          data?.display_name ||
-          "Current location";
-
-        setLocation({
-          status: "ready",
-          label,
-          latitude,
-          longitude,
-        });
-
-        // Save the customer's live GPS location
-        // so the order/rider can use it later.
-        if (currentUser?.id) {
-          const customerLocation = {
-            latitude,
-            longitude,
-            label,
-            updatedAt: Date.now(),
-          };
-
-          localStorage.setItem(
-            `customerLocation_${currentUser.id}`,
-            JSON.stringify(customerLocation)
-          );
-
-          // Tell other parts of the app that the location changed
-          window.dispatchEvent(
-            new Event("customerLocationUpdated")
-          );
-        }
-      } catch {
-        const label = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
-
-        setLocation({
-          status: "ready",
-          label,
-          latitude,
-          longitude,
-        });
-
-        if (currentUser?.id) {
-          localStorage.setItem(
-            `customerLocation_${currentUser.id}`,
-            JSON.stringify({
-              latitude,
-              longitude,
-              label,
-              updatedAt: Date.now(),
-            })
-          );
-        }
-      }
-    },
-
-    () => {
+    if (!("geolocation" in navigator)) {
       setLocation({
-        status: "denied",
-        label: "Turn on location access",
+        status: "error",
+        label: "Location unavailable",
         latitude: null,
         longitude: null,
       });
-    },
-
-    {
-      enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 5000,
+      return;
     }
-  );
 
-  // Stop watching location when the customer leaves the page
-  return () => {
-    navigator.geolocation.clearWatch(watchId);
-  };
-}, []);
+    const watchId = navigator.geolocation.watchPosition(
+      async ({ coords }) => {
+        const latitude = coords.latitude;
+        const longitude = coords.longitude;
+
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
+          );
+
+          const data = await res.json();
+
+          const area =
+            data?.address?.suburb ||
+            data?.address?.neighbourhood ||
+            data?.address?.city_district ||
+            data?.address?.city ||
+            data?.address?.town ||
+            "";
+
+          const city = data?.address?.city || data?.address?.state || "";
+
+          const label =
+            [area, city].filter(Boolean).join(", ") ||
+            data?.display_name ||
+            "Current location";
+
+          setLocation({ status: "ready", label, latitude, longitude });
+
+          if (currentUser?.id) {
+            await supabase
+              .from("customers")
+              .update({ lat: latitude, lng: longitude })
+              .eq("customer_id", currentUser.id);
+          }
+        } catch {
+          const label = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+
+          setLocation({ status: "ready", label, latitude, longitude });
+
+          if (currentUser?.id) {
+            await supabase
+              .from("customers")
+              .update({ lat: latitude, lng: longitude })
+              .eq("customer_id", currentUser.id);
+          }
+        }
+      },
+      () => {
+        setLocation({
+          status: "denied",
+          label: "Turn on location access",
+          latitude: null,
+          longitude: null,
+        });
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 5000,
+      }
+    );
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+    };
+  }, [currentUser]);
 
   return (
     <div className="min-h-screen bg-[#FBF6EE]">
@@ -420,20 +353,6 @@ function CustomerHome() {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            {/* Dev/demo helper: flips between real saved menus and sample data. */}
-            <button
-              onClick={toggleMockData}
-              title="Toggle sample data for testing"
-              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold border transition ${
-                useMockData
-                  ? "bg-[#F4B740] text-[#1F1B16] border-[#F4B740]"
-                  : "bg-white/10 text-[#C9C2B4] border-white/10 hover:bg-white/20"
-              }`}
-            >
-              <FaFlask size={11} />
-              Mock data {useMockData ? "on" : "off"}
-            </button>
-
             {/* Opens the cart drawer (see CartDrawer.jsx). The little badge
                 only shows once there's at least one item in the cart. */}
             <button
@@ -608,7 +527,6 @@ function CustomerHome() {
                       alt={restaurant.restaurantName}
                       className="w-full h-48 object-cover"
                     />
-                    
                   </div>
 
                   <div className="p-4">
@@ -703,7 +621,7 @@ function CustomerHome() {
           </div>
 
           <button
-          onClick={handleBookRider}
+            onClick={handleBookRider}
             disabled={!canBookRider}
             className="mt-5 w-full bg-[#3B6255] hover:bg-[#2E4C42] disabled:bg-[#D8CDB6] disabled:cursor-not-allowed text-white py-3 rounded-xl font-bold transition"
           >

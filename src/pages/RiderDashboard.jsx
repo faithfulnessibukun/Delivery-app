@@ -11,7 +11,8 @@ import {
 import toast from "react-hot-toast";
 import LiveDeliveryMap from "../components/LiveDeliveryMap";
 import DeliveryOfferPopup from "../components/DeliveryOfferPopup";
-import { CURRENT_USER_KEYS } from "../utils/storage";
+import { supabase } from "../lib/supabase";
+import { getCurrentUser } from "../utils/supabaseStorage";
 import {
   MAX_BATCH_SIZE,
   getAvailableForOffers,
@@ -37,10 +38,15 @@ const FOOD_STEP_LABELS = ["Accepted", "Pickup", "On the Way", "Delivered"];
 function RiderDashboard() {
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    localStorage.removeItem(CURRENT_USER_KEYS.rider);
-    toast.success("Logged out successfully!");
-    navigate("/");
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      toast.success("Logged out successfully!");
+      navigate("/");
+    } catch (error) {
+      console.error("Error logging out:", error);
+      toast.error("Failed to logout");
+    }
   };
 
   const [rider, setRider] = useState(null);
@@ -55,56 +61,94 @@ function RiderDashboard() {
 
   // --- Auth + initial load --------------------------------------------
   useEffect(() => {
-    const currentUser =
-      JSON.parse(localStorage.getItem(CURRENT_USER_KEYS.rider)) || null;
+    const loadRider = async () => {
+      try {
+        const currentUser = await getCurrentUser();
 
-    if (!currentUser || currentUser.role !== "rider") {
-      toast.error("Please login as a rider.");
-      navigate("/");
-      return;
-    }
+        if (!currentUser || currentUser.role !== "rider") {
+          toast.error("Please login as a rider.");
+          navigate("/");
+          return;
+        }
 
-    setRider(currentUser);
+        setRider(currentUser);
 
-    const savedEarnings =
-      Number(localStorage.getItem(`riderEarnings_${currentUser.id}`)) || 0;
-    setEarnings(savedEarnings);
+        // Load rider earnings from user_settings or rider earnings table
+        try {
+          const { data: settings, error } = await supabase
+            .from('user_settings')
+            .select('value')
+            .eq('user_id', currentUser.id)
+            .eq('key', 'riderEarnings')
+            .single();
+
+          if (!error && settings) {
+            setEarnings(Number(JSON.parse(settings.value)) || 0);
+          }
+        } catch {
+          setEarnings(0);
+        }
+      } catch (error) {
+        console.error("Error loading rider:", error);
+        toast.error("Failed to load rider data");
+      }
+    };
+
+    loadRider();
   }, [navigate]);
 
   // --- Keep batch + completed lists in sync with both order stores ----
-  const refreshLists = useCallback(() => {
+  const refreshLists = useCallback(async () => {
     if (!rider) return;
-    setMyBatch(getMyBatch(rider.id));
-    setMyCompleted(getMyCompleted(rider.id));
+    const batch = await getMyBatch(rider.id);
+    const completed = await getMyCompleted(rider.id);
+    setMyBatch(batch || []);
+    setMyCompleted(completed || []);
   }, [rider]);
 
   useEffect(() => {
     if (!rider) return;
     refreshLists();
 
-    window.addEventListener("ordersUpdated", refreshLists);
-    window.addEventListener("courierOrdersUpdated", refreshLists);
-    return () => {
-      window.removeEventListener("ordersUpdated", refreshLists);
-      window.removeEventListener("courierOrdersUpdated", refreshLists);
-    };
+    // Poll for updates every 5 seconds
+    const interval = setInterval(refreshLists, 5000);
+
+    return () => clearInterval(interval);
   }, [rider, refreshLists]);
 
   // --- Pay the rider once a delivery reaches "Delivered" ---------------
   useEffect(() => {
     if (!rider) return;
-    myBatch
-      .filter((d) => d.isDelivered)
-      .forEach((d) => {
-        const fee = markPaidIfNeeded(d.poolId);
+
+    const savePaidDeliveries = async () => {
+      const paidDeliveries = myBatch.filter((d) => d.isDelivered);
+      let totalNewEarnings = 0;
+
+      for (const delivery of paidDeliveries) {
+        const fee = await markPaidIfNeeded(delivery.poolId);
         if (fee > 0) {
-          setEarnings((prev) => {
-            const next = prev + fee;
-            localStorage.setItem(`riderEarnings_${rider.id}`, next.toString());
-            return next;
-          });
+          totalNewEarnings += fee;
         }
-      });
+      }
+
+      if (totalNewEarnings > 0) {
+        setEarnings((prev) => {
+          const next = prev + totalNewEarnings;
+          // Save to Supabase
+          supabase
+            .from('user_settings')
+            .upsert({
+              user_id: rider.id,
+              key: 'riderEarnings',
+              value: JSON.stringify(next),
+            }, { onConflict: 'user_id,key' })
+            .catch((error) => console.error("Error saving earnings:", error));
+          return next;
+        });
+      }
+    };
+
+    savePaidDeliveries();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myBatch, rider]);
 

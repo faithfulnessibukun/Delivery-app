@@ -11,7 +11,7 @@ import {
 } from "react-icons/fa";
 
 import Sidebar from "../components/Sidebar";
-import { CURRENT_USER_KEYS } from "../utils/storage";
+import { getOrders, updateOrder, getCurrentUser } from "../utils/supabaseStorage";
 
 function VendorOrders() {
   const navigate = useNavigate();
@@ -20,99 +20,85 @@ function VendorOrders() {
   const [orders, setOrders] = useState([]);
 
   useEffect(() => {
-  const loadOrders = () => {
-    const currentVendor = JSON.parse(
-      localStorage.getItem(CURRENT_USER_KEYS.vendor)
-    );
+    const loadOrders = async () => {
+      try {
+        const currentVendor = await getCurrentUser();
 
-    if (!currentVendor || currentVendor.role !== "vendor") {
-      toast.error("Please login as a vendor.");
-      navigate("/");
-      return;
-    }
-
-    setVendor(currentVendor);
-
-    const savedOrders =
-      JSON.parse(localStorage.getItem("orders")) || [];
-
-    const vendorOrders = savedOrders.filter(
-      (order) =>
-        String(order.vendorId) === String(currentVendor?.id)
-    );
-    setOrders(vendorOrders);
-  };
-
-  loadOrders();
-
-  window.addEventListener("ordersUpdated", loadOrders);
-  return () =>
-    window.removeEventListener("ordersUpdated", loadOrders);
-}, [navigate]);
-
-
-console.log("Vendor Orders:", orders);
-  const updateStatus = (id, status) => {
-  const allOrders =
-    JSON.parse(localStorage.getItem("orders")) || [];
-
-  // Marking an order Ready is what hands it off to riders, so this is
-  // where the vendor sets what the rider gets paid for delivering it.
-  let riderEarnings;
-  if (status === "Ready") {
-    const currentOrder = allOrders.find((order) => order.id === id);
-    const input = prompt(
-      "Set the delivery fee for the rider (₦):",
-      currentOrder?.riderEarnings || ""
-    );
-
-    if (input === null) return; // vendor cancelled — don't change status
-
-    const fee = Number(input);
-    if (!input.trim() || Number.isNaN(fee) || fee <= 0) {
-      toast.error("Please enter a valid delivery fee.");
-      return;
-    }
-
-    riderEarnings = fee;
-  }
-
-  const updatedOrders = allOrders.map((order) =>
-    order.id === id
-      ? {
-          ...order,
-          status,
-          ...(riderEarnings !== undefined && { riderEarnings }),
+        if (!currentVendor || currentVendor.role !== "vendor") {
+          toast.error("Please login as a vendor.");
+          navigate("/");
+          return;
         }
-      : order
-  );
 
-  // Save the updated orders so the rider can see them too.
-  localStorage.setItem(
-    "orders",
-    JSON.stringify(updatedOrders)
-  );
+        setVendor(currentVendor);
 
-  // Update the vendor's order list immediately.
-  setOrders(
-    updatedOrders.filter(
-      (order) =>
-        String(order.vendorId) === String(vendor?.id)
-    )
-  );
+        const allOrders = await getOrders({ vendorId: currentVendor.id });
+        setOrders(allOrders || []);
+      } catch (error) {
+        console.error("Error loading vendor orders:", error);
+        toast.error("Failed to load orders");
+      }
+    };
 
-  // Tell other pages/components that the orders have changed.
-  window.dispatchEvent(new Event("ordersUpdated"));
+    loadOrders();
 
-  // Give the vendor feedback.
-  if (status === "Ready") {
-    toast.success(
-      "Order is ready! It is now available for riders."
-    );
-  } else {
-    toast.success(`Order status changed to ${status}`);
-  }
-};
+    // Optionally poll for new orders every 5 seconds
+    const interval = setInterval(loadOrders, 5000);
+    return () => clearInterval(interval);
+  }, [navigate]);
+
+
+  const updateStatus = async (id, status) => {
+    try {
+      // Marking an order Ready is what hands it off to riders, so this is
+      // where the vendor sets what the rider gets paid for delivering it.
+      let riderEarnings;
+      if (status === "Ready") {
+        const currentOrder = orders.find((order) => order.id === id);
+        const input = prompt(
+          "Set the delivery fee for the rider (₦):",
+          currentOrder?.riderEarnings || ""
+        );
+
+        if (input === null) return; // vendor cancelled — don't change status
+
+        const fee = Number(input);
+        if (!input.trim() || Number.isNaN(fee) || fee <= 0) {
+          toast.error("Please enter a valid delivery fee.");
+          return;
+        }
+
+        riderEarnings = fee;
+      }
+
+      const updates = { status };
+      if (riderEarnings !== undefined) {
+        updates.riderEarnings = riderEarnings;
+      }
+
+      // Update in Supabase
+      await updateOrder(id, updates);
+
+      // Update local state
+      setOrders(
+        orders.map((order) =>
+          order.id === id ? { ...order, ...updates } : order
+        )
+      );
+
+      // Give the vendor feedback.
+      if (status === "Ready") {
+        toast.success(
+          "Order is ready! It is now available for riders."
+        );
+      } else {
+        toast.success(`Order status changed to ${status}`);
+      }
+    } catch (error) {
+      console.error("Error updating order status:", error);
+      toast.error("Failed to update order status");
+    }
+  };
 
   return (
     <div className="flex min-h-screen bg-gray-100">

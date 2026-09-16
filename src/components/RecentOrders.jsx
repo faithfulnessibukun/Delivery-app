@@ -1,38 +1,33 @@
 ﻿import { useEffect, useState } from "react";
-import { CURRENT_USER_KEYS } from "../utils/storage";
+import { getOrders, getCurrentUser } from "../utils/supabaseStorage";
 
 function RecentOrders() {
   const [orders, setOrders] = useState([]);
 
   useEffect(() => {
+    const loadOrders = async () => {
+      try {
+        const vendor = await getCurrentUser();
+        if (!vendor || vendor.role !== "vendor") return;
 
-  const loadOrders = () => {
+        const vendorOrders = await getOrders({ vendorId: vendor.id });
+        // Sort by placedAt (newest first) and limit to 5
+        const sorted = (vendorOrders || [])
+          .sort((a, b) => new Date(b.placedAt) - new Date(a.placedAt))
+          .slice(0, 5);
+        setOrders(sorted);
+      } catch (error) {
+        console.error("Error loading recent orders:", error);
+        setOrders([]);
+      }
+    };
 
-    const vendor =
-      JSON.parse(localStorage.getItem(CURRENT_USER_KEYS.vendor)) || {};
+    loadOrders();
 
-    const allOrders =
-      JSON.parse(localStorage.getItem("orders")) || [];
+    const interval = setInterval(loadOrders, 5000);
 
-    const vendorOrders = allOrders
-      .filter(
-        (order) =>
-          String(order.vendorId) === String(vendor.id)
-      )
-      .sort((a, b) => b.placedAt - a.placedAt)
-      .slice(0, 5);
-
-    setOrders(vendorOrders);
-
-  };
-
-  loadOrders();
-
-  const interval = setInterval(loadOrders, 1000);
-
-  return () => clearInterval(interval);
-
-}, []);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="bg-white rounded-xl shadow p-6 mt-8">

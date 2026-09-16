@@ -1,6 +1,6 @@
+import { useEffect } from "react";
 import { Routes, Route } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
-
 import Login from "./pages/Authentication/Login";
 import Dashboard from "./pages/Dashboard";
 import Menu from "./pages/Menu";
@@ -28,6 +28,8 @@ import RiderCompletedDeliveries from "./pages/RiderCompletedDeliveries";
 //   - CartDrawer: the slide-in cart panel, rendered once here so it can
 //     appear on top of any page below
 //   - Routes: maps each URL path to the page component that should render there
+
+ 
 function App() {
   return (
     <CartProvider>

@@ -6,77 +6,61 @@ import {
   FaPhone,
   FaMotorcycle,
 } from "react-icons/fa";
-import { CURRENT_USER_KEYS } from "../utils/storage";
+import { getCourierOrders, updateCourierOrder, getCurrentUser } from "../utils/supabaseStorage";
 
 function RiderCourierOrders() {
   const [courierOrders, setCourierOrders] = useState([]);
 
-  const loadCourierOrders = () => {
-    const orders =
-      JSON.parse(localStorage.getItem("courierOrders")) || [];
-
-    setCourierOrders(orders);
+  const loadCourierOrders = async () => {
+    try {
+      const orders = await getCourierOrders();
+      setCourierOrders(orders || []);
+    } catch (error) {
+      console.error("Error loading courier orders:", error);
+      setCourierOrders([]);
+    }
   };
 
   // PUT handleAcceptDelivery HERE
-  const handleAcceptDelivery = (orderId) => {
-    const currentUser =
-      JSON.parse(localStorage.getItem(CURRENT_USER_KEYS.rider)) || null;
+  const handleAcceptDelivery = async (orderId) => {
+    try {
+      const currentUser = await getCurrentUser();
 
-    if (!currentUser) {
-      alert("Please login as a rider first.");
-      return;
-    }
-
-    // Accepting is what commits the rider to the job, so this is where
-    // they set the delivery fee they're charging for it.
-    const input = prompt("Set your delivery fee for this job (₦):");
-    if (input === null) return; // rider cancelled
-
-    const fee = Number(input);
-    if (!input.trim() || Number.isNaN(fee) || fee <= 0) {
-      alert("Please enter a valid delivery fee.");
-      return;
-    }
-
-    const orders =
-      JSON.parse(localStorage.getItem("courierOrders")) || [];
-
-    const updatedOrders = orders.map((order) => {
-      if (order.id !== orderId) {
-        return order;
+      if (!currentUser) {
+        alert("Please login as a rider first.");
+        return;
       }
 
-      return {
-        ...order,
+      // Accepting is what commits the rider to the job, so this is where
+      // they set the delivery fee they're charging for it.
+      const input = prompt("Set your delivery fee for this job (₦):");
+      if (input === null) return; // rider cancelled
 
+      const fee = Number(input);
+      if (!input.trim() || Number.isNaN(fee) || fee <= 0) {
+        alert("Please enter a valid delivery fee.");
+        return;
+      }
+
+      // Update the order in Supabase
+      await updateCourierOrder(orderId, {
         riderId: currentUser.id,
-        riderName: currentUser.fullName || "Rider",
-
+        riderName: currentUser.full_name || "Rider",
         status: "Rider Assigned",
-
         deliveryFee: fee,
-
         riderLatitude: null,
         riderLongitude: null,
+        assignedAt: new Date().toISOString(),
+      });
 
-        assignedAt: Date.now(),
-      };
-    });
+      await loadCourierOrders();
 
-    localStorage.setItem(
-      "courierOrders",
-      JSON.stringify(updatedOrders)
-    );
-
-    window.dispatchEvent(
-      new Event("courierOrdersUpdated")
-    );
-
-    setCourierOrders(updatedOrders);
-
-    alert("Delivery accepted!");
-    window.location.href = "/rider-courier-delivery";
+      alert("Delivery accepted!");
+      window.location.href = "/rider-courier-delivery";
+    } catch (error) {
+      console.error("Error accepting delivery:", error);
+      alert("Failed to accept delivery");
+    }
   };
 
   useEffect(() => {

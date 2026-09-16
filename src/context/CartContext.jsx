@@ -1,5 +1,5 @@
-import { createContext, useContext, useMemo, useState } from "react";
-import { getStoredArray } from "../utils/storage";
+import { createContext, useContext, useMemo, useState, useEffect } from "react";
+import { getCart, saveCart, getCurrentUser } from "../utils/supabaseStorage";
 
 // --- What is this file for? ---
 // The cart drawer (see CartDrawer.jsx) can be opened from many different
@@ -25,25 +25,62 @@ const CartContext = createContext(null);
 // that calls useCart(), no matter how deep it is in the app.
 export function CartProvider({ children }) {
   // The cart itself: an array of { name, price, quantity, ... } objects.
-  // Starts by reading whatever was last saved in localStorage.
-  const [cart, setCart] = useState(() => getStoredArray("cart"));
+  // Starts empty, then loads from Supabase when the component mounts.
+  const [cart, setCart] = useState([]);
   // Whether the slide-in cart drawer is currently visible.
   const [isCartOpen, setCartOpen] = useState(false);
+  // Track if cart has finished loading from Supabase
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Load cart from Supabase when component mounts
+  useEffect(() => {
+    const loadCart = async () => {
+      try {
+        const user = await getCurrentUser();
+        if (user && user.id) {
+          const cartItems = await getCart(user.id);
+          setCart(cartItems || []);
+        }
+      } catch (error) {
+        console.error("Error loading cart from Supabase:", error);
+        setCart([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadCart();
+  }, []);
 
   // Saves a new cart both in React state (so the UI updates) and in
-  // localStorage (so it's remembered after a page refresh).
-  const updateCart = (nextCart) => {
+  // Supabase (so it's remembered after a page refresh).
+  const updateCart = async (nextCart) => {
     setCart(nextCart);
-    localStorage.setItem("cart", JSON.stringify(nextCart));
+    try {
+      const user = await getCurrentUser();
+      if (user && user.id) {
+        await saveCart(user.id, nextCart);
+      }
+    } catch (error) {
+      console.error("Error saving cart to Supabase:", error);
+    }
   };
 
-  // Some pages (like Menuitemdetail) add items straight to localStorage
-  // instead of going through updateCart. refreshCart re-reads localStorage
-  // into React state so those changes show up here too.
-  const refreshCart = () => setCart(getStoredArray("cart"));
+  // Reload cart from Supabase
+  const refreshCart = async () => {
+    try {
+      const user = await getCurrentUser();
+      if (user && user.id) {
+        const cartItems = await getCart(user.id);
+        setCart(cartItems || []);
+      }
+    } catch (error) {
+      console.error("Error refreshing cart from Supabase:", error);
+    }
+  };
 
-  const openCart = () => {
-    refreshCart();
+  const openCart = async () => {
+    await refreshCart();
     setCartOpen(true);
   };
 
@@ -65,6 +102,7 @@ export function CartProvider({ children }) {
     isCartOpen,
     openCart,
     closeCart,
+    isLoading,
   };
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

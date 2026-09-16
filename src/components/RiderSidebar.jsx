@@ -6,12 +6,13 @@ import {
   FaCheckCircle,
   FaMotorcycle,
 } from "react-icons/fa";
+import { supabase } from "../lib/supabase";
 
 function RiderSidebar({ sidebarOpen, setSidebarOpen }) {
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    localStorage.removeItem("currentUser");
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     navigate("/");
   };
 
@@ -44,26 +45,17 @@ function RiderSidebar({ sidebarOpen, setSidebarOpen }) {
           }
         `}
       >
-
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-6 border-b border-white/10">
-
           <div className="flex items-center gap-3">
-
             <div className="bg-[#F4B740] text-[#1F1B16] p-2.5 rounded-xl">
               <FaMotorcycle size={20} />
             </div>
 
             <div>
-              <h2 className="text-xl font-black">
-                Rider Panel
-              </h2>
-
-              <p className="text-xs text-gray-400">
-                Delivery Center
-              </p>
+              <h2 className="text-xl font-black">Rider Panel</h2>
+              <p className="text-xs text-gray-400">Delivery Center</p>
             </div>
-
           </div>
 
           {/* Mobile close */}
@@ -73,18 +65,15 @@ function RiderSidebar({ sidebarOpen, setSidebarOpen }) {
           >
             <FaTimes size={20} />
           </button>
-
         </div>
 
         {/* Navigation */}
         <nav className="px-4 py-6">
-
           <p className="text-xs font-bold uppercase tracking-wider text-gray-500 px-3 mb-3">
             Main Menu
           </p>
 
           <ul className="space-y-2">
-
             {/* Dashboard */}
             <li>
               <NavLink
@@ -120,12 +109,10 @@ function RiderSidebar({ sidebarOpen, setSidebarOpen }) {
                 <span>Completed Deliveries</span>
               </NavLink>
             </li>
-
           </ul>
 
           {/* Logout */}
           <div className="mt-8 pt-6 border-t border-white/10">
-
             <button
               onClick={handleLogout}
               className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-400 font-semibold hover:bg-red-600 hover:text-white transition"
@@ -133,11 +120,8 @@ function RiderSidebar({ sidebarOpen, setSidebarOpen }) {
               <FaSignOutAlt />
               <span>Logout</span>
             </button>
-
           </div>
-
         </nav>
-
       </aside>
     </>
   );

@@ -1,6 +1,10 @@
-import { createClient } from '@supabase/supabase-js';
+// Local-storage-backed mock of the Supabase client — lets the app run
+// fully client-side (no live backend) for demo/testing purposes.
+// Same named export `supabase` as the real client, so nothing else in
+// the app needs to change.
+import { supabase } from "./mockSupabase";
+import { seedDemoData } from "./seedDemoData";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+seedDemoData();
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+export { supabase };

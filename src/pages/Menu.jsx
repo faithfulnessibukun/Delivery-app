@@ -165,8 +165,8 @@ function Menu() {
             setEditingMenu={setEditingMenu}
           />
           {showCategoryModal && (
-            <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-              <div className="bg-white w-80 rounded-xl p-6 shadow-xl">
+            <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+              <div className="bg-white w-full max-w-xs sm:max-w-sm rounded-xl p-6 shadow-xl">
                 <h2 className="text-xl font-bold mb-4">Add Category</h2>
 
                 <input

@@ -46,10 +46,10 @@ function RecentOrders() {
           {orders.map((order) => (
             <div
               key={order.id}
-              className="flex justify-between border-b pb-4"
+              className="flex flex-col sm:flex-row sm:justify-between gap-2 border-b pb-4"
             >
-              <div>
-                <h3 className="font-semibold">
+              <div className="min-w-0">
+                <h3 className="font-semibold truncate">
                   {order.customerName}
                 </h3>
 
@@ -65,12 +65,12 @@ function RecentOrders() {
                 </p>
               </div>
 
-              <div className="text-right">
+              <div className="text-left sm:text-right shrink-0">
                 <p className="font-bold">
                   ₦{order.total.toLocaleString()}
                 </p>
 
-                <span className="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded-full">
+                <span className="inline-block text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded-full">
                   {order.status}
                 </span>
               </div>

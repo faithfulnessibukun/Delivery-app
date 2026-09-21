@@ -48,10 +48,10 @@ function DashboardHeader({ vendor, setVendor }) {
 
   return (
     <div className="mb-8">
-      <div className="flex justify-between items-start">
-        <div className="bg-white rounded-xl shadow-lg p-6 flex items-center gap-5">
+      <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4">
+        <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 flex flex-col sm:flex-row items-center sm:items-center gap-4 sm:gap-5 text-center sm:text-left">
           {/* Restaurant Picture */}
-          <div className="relative">
+          <div className="relative shrink-0">
             <img
               src={
                 vendor?.restaurantImage ||
@@ -76,16 +76,16 @@ function DashboardHeader({ vendor, setVendor }) {
             </label>
           </div>
 
-          <div>
-            <h2 className="text-2xl font-bold">
+          <div className="min-w-0">
+            <h2 className="text-xl sm:text-2xl font-bold break-words">
               {vendor?.restaurantName || "Restaurant Name"}
             </h2>
 
-            <p className="text-gray-500">Owner: {vendor?.fullName}</p>
+            <p className="text-gray-500 break-words">Owner: {vendor?.fullName}</p>
 
-            <p className="text-gray-500">{vendor?.email}</p>
+            <p className="text-gray-500 break-words">{vendor?.email}</p>
 
-            <p className="text-gray-500">
+            <p className="text-gray-500 break-words">
               📍 {vendor?.restaurantAddress}
             </p>
 
@@ -97,14 +97,14 @@ function DashboardHeader({ vendor, setVendor }) {
 
         <button
           onClick={() => navigate("/menu")}
-          className="bg-blue-600 text-white px-5 py-3 rounded-lg hover:bg-blue-700"
+          className="w-full md:w-auto shrink-0 bg-blue-600 text-white px-5 py-3 rounded-lg hover:bg-blue-700"
         >
           Add Menu
         </button>
       </div>
 
       <div className="mt-6">
-        <h1 className="text-3xl font-bold">
+        <h1 className="text-2xl sm:text-3xl font-bold break-words">
           Welcome Back, {vendor?.restaurantName} 👋
         </h1>
 

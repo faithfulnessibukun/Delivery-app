@@ -33,14 +33,14 @@ function DeliveryOfferPopup({ offer, onAccept, onIgnore }) {
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
         <div className="flex items-center gap-3 mb-4">
-          <div className="bg-[#FCE7DD] text-[#E8491D] p-3 rounded-xl">
+          <div className="bg-[#FCE7DD] text-[#E8491D] p-3 rounded-xl shrink-0">
             {isCourier ? <FaBoxOpen size={20} /> : <FaMotorcycle size={20} />}
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-xs font-bold text-[#8A8378] uppercase tracking-wide">
               {isCourier ? "New Courier Delivery" : "New Food Delivery"}
             </p>
-            <h3 className="font-black text-lg text-[#1F1B16]">
+            <h3 className="font-black text-lg text-[#1F1B16] truncate">
               {offer.title}
             </h3>
           </div>
@@ -76,16 +76,16 @@ function DeliveryOfferPopup({ offer, onAccept, onIgnore }) {
           Available for {secondsLeft} seconds
         </p>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
           <button
             onClick={() => onIgnore(offer, { expired: false })}
-            className="py-3 rounded-xl font-bold bg-gray-100 text-gray-600 hover:bg-gray-200 transition"
+            className="py-2.5 sm:py-3 rounded-xl font-bold bg-gray-100 text-gray-600 hover:bg-gray-200 transition text-sm sm:text-base"
           >
             Ignore
           </button>
           <button
             onClick={() => onAccept(offer)}
-            className="py-3 rounded-xl font-bold bg-[#E8491D] hover:bg-[#C73A15] text-white transition"
+            className="py-2.5 sm:py-3 rounded-xl font-bold bg-[#E8491D] hover:bg-[#C73A15] text-white transition text-sm sm:text-base"
           >
             Accept
           </button>

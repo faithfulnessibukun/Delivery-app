@@ -11,6 +11,7 @@ import {
   addCategory,
   deleteCategoryByName,
   getCurrentUser,
+  getVendorDetails,
 } from "../utils/supabaseStorage";
 
 // The vendor's menu management screen: add/edit/delete menu items
@@ -38,6 +39,8 @@ function Menu() {
   // Track loading state and vendor ID
   const [isLoading, setIsLoading] = useState(true);
   const [vendorId, setVendorId] = useState(null);
+  // Shown in the mobile header in place of the generic "Menu" label.
+  const [restaurantName, setRestaurantName] = useState("");
 
   // Load menus and categories from Supabase when component mounts.
   // NOTE: menus/categories are only ever WRITTEN by their own dedicated
@@ -55,6 +58,9 @@ function Menu() {
           return;
         }
         setVendorId(user.id);
+
+        const vendorDetails = await getVendorDetails(user.id);
+        setRestaurantName(vendorDetails?.business_name || "");
 
         const fetchedMenus = await getMenus(user.id);
         const fetchedCategories = await getCategories(user.id);
@@ -141,7 +147,7 @@ function Menu() {
 
           <h1 className="font-bold flex items-center gap-2">
             <FaStore className="text-blue-600" />
-            Menu
+            {restaurantName || "Menu"}
           </h1>
         </div>
 

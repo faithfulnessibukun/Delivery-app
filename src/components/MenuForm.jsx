@@ -131,6 +131,7 @@ function MenuForm({
             category,
             price: parseFloat(price),
             image_url: image,
+            is_available: true,
           })
           .select()
           .single();
@@ -180,7 +181,7 @@ function MenuForm({
   };
 
   return (
-    <div className="bg-white rounded-xl shadow p-6 mb-6">
+    <div id="add-menu-form" className="bg-white rounded-xl shadow p-6 mb-6 scroll-mt-4">
       <h2 className="text-xl font-bold mb-4">Add New Menu Item</h2>
 
       <div className="grid md:grid-cols-2 gap-4 items-start">

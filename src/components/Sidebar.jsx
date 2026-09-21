@@ -20,14 +20,14 @@ function Sidebar({ sidebarOpen, setSidebarOpen }) {
           since the sidebar doesn't overlay content there. */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          className="fixed inset-0 h-dvh bg-black/50 z-40 md:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
       <aside
         className={`
-          fixed top-0 left-0 h-screen w-64
+          fixed top-0 left-0 h-dvh w-64
           bg-gray-900 text-white p-6
           transform transition-transform duration-300 z-50
           ${

@@ -157,18 +157,23 @@ function RiderDashboard() {
   useEffect(() => {
     if (!rider) return;
 
-    const poll = () => {
+    const poll = async () => {
       if (currentOfferRef.current) return; // already showing one
       if (myBatch.length >= MAX_BATCH_SIZE) return; // batch locked
 
-      const now = Date.now();
-      const available = getAvailableForOffers().filter((d) => {
-        const dismissedAt = dismissedRef.current.get(d.poolId);
-        return !dismissedAt || now - dismissedAt > DISMISS_COOLDOWN_MS;
-      });
+      try {
+        const now = Date.now();
+        const all = await getAvailableForOffers();
+        const available = all.filter((d) => {
+          const dismissedAt = dismissedRef.current.get(d.poolId);
+          return !dismissedAt || now - dismissedAt > DISMISS_COOLDOWN_MS;
+        });
 
-      if (available.length > 0) {
-        setCurrentOffer(available[0]);
+        if (available.length > 0) {
+          setCurrentOffer(available[0]);
+        }
+      } catch (error) {
+        console.error("Error polling for delivery offers:", error);
       }
     };
 

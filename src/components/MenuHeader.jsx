@@ -1,14 +1,25 @@
 import { useState } from "react";
 import { FaChevronDown, FaTimes, FaPlus } from "react-icons/fa";
 
-// The top section of the Menu page: title, a search box, and a
-// "All Categories" dropdown that lists every category with a delete (X)
-// button next to each, plus an "Add Category" option at the bottom.
+// The top section of the Menu page: title and an "All Categories"
+// dropdown that lists every category with a delete (X) button next to
+// each, plus an "Add Category" option at the bottom. "Add New Menu"
+// jumps down to the add-item form below.
 function MenuHeader({categories,deleteCategory,setShowCategoryModal
 
 }){
   // Whether the categories dropdown is currently open.
   const [openDropdown, setOpenDropdown] = useState(false);
+
+  // Scrolls down to the "Add New Menu Item" form and focuses its first
+  // field, instead of duplicating that form up here.
+  const scrollToAddForm = () => {
+    const form = document.getElementById("add-menu-form");
+    if (!form) return;
+    form.scrollIntoView({ behavior: "smooth", block: "start" });
+    form.querySelector("input,select")?.focus();
+  };
+
   return (
     <>
       <div className="flex justify-between items-center mb-8">
@@ -22,7 +33,10 @@ function MenuHeader({categories,deleteCategory,setShowCategoryModal
           </p>
         </div>
 
-        <button className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+        <button
+          onClick={scrollToAddForm}
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+        >
           Add New Menu
         </button>
       </div>
@@ -30,11 +44,6 @@ function MenuHeader({categories,deleteCategory,setShowCategoryModal
       <div className="bg-white rounded-xl shadow p-5 mb-6">
         <div className="flex flex-col md:flex-row gap-4">
 
-          <input
-            type="text"
-            placeholder="Search food..."
-            className="border rounded-lg px-4 py-2 w-full"
-          />
             <div className="relative">
 
   <button

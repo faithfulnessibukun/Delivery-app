@@ -25,7 +25,7 @@ function RiderSidebar({ sidebarOpen, setSidebarOpen }) {
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          className="fixed inset-0 h-dvh bg-black/50 z-40 md:hidden"
           onClick={closeSidebar}
         />
       )}
@@ -34,7 +34,7 @@ function RiderSidebar({ sidebarOpen, setSidebarOpen }) {
       <aside
         className={`
           fixed top-0 left-0 z-50
-          h-screen w-64
+          h-dvh w-64
           bg-[#1F1B16] text-white
           shadow-2xl
           transform transition-transform duration-300 ease-in-out

@@ -1,10 +1,8 @@
-// Local-storage-backed mock of the Supabase client — lets the app run
-// fully client-side (no live backend) for demo/testing purposes.
-// Same named export `supabase` as the real client, so nothing else in
-// the app needs to change.
-import { supabase } from "./mockSupabase";
-import { seedDemoData } from "./seedDemoData";
+import { createClient } from "@supabase/supabase-js";
 
-seedDemoData();
+// Replace these two strings with your actual values from:
+// Supabase Dashboard -> Project Settings -> API
+const supabaseUrl = "https://vmnxjhgojuabccuwljpk.supabase.co";
+const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZtbnhqaGdvanVhYmNjdXdsanBrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgxNzc0NzksImV4cCI6MjEwMzc1MzQ3OX0.K8HR1BFkqAYJmSNTtv7l5vaA_vSh82trw4wqlBWRLuM";
 
-export { supabase };
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);

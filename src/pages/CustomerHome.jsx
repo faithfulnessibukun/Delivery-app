@@ -38,7 +38,7 @@ function mapMenuItem(item) {
 
   return {
     id: item.menu_item_id,
-    vendorId: vendorId, // ID used for navigation to /restaurant/:vendorId
+    vendorId: vendorId, // Used to navigate to /restaurant/:vendorId
     restaurantId: restaurantId,
     restaurantName: item.restaurants?.name || "Unknown Restaurant",
     restaurantAddress: item.restaurants?.address_line || "Address unavailable",
@@ -82,6 +82,7 @@ function CustomerHome() {
 
   const firstName = currentUser?.full_name?.split(" ")[0] || "there";
 
+  // Load the logged-in user on mount
   useEffect(() => {
     const loadUser = async () => {
       const user = await getCurrentUser();
@@ -90,14 +91,14 @@ function CustomerHome() {
     loadUser();
   }, []);
 
-  // Fetch all active menu items along with their parent restaurant info
+  // Fetch all available menu items along with parent restaurant details
   useEffect(() => {
     const loadMenus = async () => {
       const { data, error } = await supabase
         .from("menu_items")
         .select(`
           *,
-          restaurants!inner (
+          restaurants (
             restaurant_id,
             vendor_id,
             name,
@@ -113,6 +114,7 @@ function CustomerHome() {
         return;
       }
 
+      console.log("Raw items loaded from Supabase:", data);
       setMenus((data || []).map(mapMenuItem));
     };
 

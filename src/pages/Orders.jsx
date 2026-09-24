@@ -1,50 +1,71 @@
-import {  useEffect ,useState } from "react";
-import { FaReceipt, FaClock } from "react-icons/fa";
+import { useEffect, useState } from "react";
+import { FaReceipt, FaClock, FaCheckCircle } from "react-icons/fa";
+import toast from "react-hot-toast";
 import CustomerNav from "../components/CustomerNav";
 import { getOrders, getCurrentUser } from "../utils/supabaseStorage";
 import LiveDeliveryMap from "../components/LiveDeliveryMap";
+import { supabase } from "../lib/supabase";
 
-// order.status tracks the restaurant's progress (Placed/Preparing/Ready/
-// Cancelled) and order.deliveryStatus tracks the rider's progress (Accepted
-// by Rider/Picked Up/Out for Delivery/Delivered) — separate fields set by
-// VendorOrders.jsx and RiderDashboard.jsx respectively. Show whichever one
-// reflects where the order actually is right now.
 function displayStatus(order) {
   return order.riderId ? order.deliveryStatus : order.status;
 }
 
-// Shows every order the customer has placed so far. Orders are created in
-// CartDrawer.jsx's "Place Order" button and saved to Supabase — this
-// page just reads that list back out and displays it, newest first.
 function Orders() {
   const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const loadOrders = async () => {
-      try {
-        const user = await getCurrentUser();
-        if (!user) {
-          setOrders([]);
-          setIsLoading(false);
-          return;
-        }
-        const customerOrders = await getOrders({ customerId: user.id });
-        setOrders(customerOrders || []);
-      } catch (error) {
-        console.error("Error loading orders:", error);
+  const loadOrders = async () => {
+    try {
+      const user = await getCurrentUser();
+      if (!user) {
         setOrders([]);
-      } finally {
         setIsLoading(false);
+        return;
       }
-    };
+      const customerOrders = await getOrders({ customerId: user.id });
+      setOrders(customerOrders || []);
+    } catch (error) {
+      console.error("Error loading orders:", error);
+      setOrders([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
+  useEffect(() => {
     loadOrders();
-
-    // Poll for updates every 5 seconds
     const interval = setInterval(loadOrders, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  // --- Customer Confirm Delivery Logic ---------------------------------
+  const handleConfirmDelivery = async (orderId) => {
+    const confirm = window.confirm("Have you received your order and want to confirm delivery?");
+    if (!confirm) return;
+
+    try {
+      const { error } = await supabase
+        .from("orders")
+        .update({
+          delivery_status: "Delivered",
+          status: "Delivered",
+          delivered_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("order_id", orderId);
+
+      if (error) {
+        console.error("Error marking delivery as complete:", error);
+        toast.error("Failed to confirm delivery. Please try again.");
+      } else {
+        toast.success("Order confirmed as delivered! Thank you.");
+        loadOrders();
+      }
+    } catch (err) {
+      console.error("Delivery confirmation error:", err);
+      toast.error("An error occurred while confirming delivery.");
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#FBF6EE] pb-24">
@@ -65,116 +86,120 @@ function Orders() {
           </div>
         ) : (
           <div className="space-y-4">
-            {orders.map((order) => (
-              <div key={order.id} className="bg-white rounded-2xl shadow p-5">
-                {/* Live rider tracking */}
-{order.riderId &&
-  order.customerLatitude &&
-  order.customerLongitude && (
-    <div className="mb-5">
-      <LiveDeliveryMap
-        customerLatitude={order.customerLatitude}
-        customerLongitude={order.customerLongitude}
-        riderLatitude={order.riderLatitude}
-        riderLongitude={order.riderLongitude}
-      />
-    </div>
-)}
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="font-bold text-[#1F1B16]">
-                      {order.restaurantName || "Restaurant"}
-                    </p>
-                    <p className="text-xs text-[#8A8378] mt-1">
-                      Order #{String(order.id).slice(-6)}
-                    </p>
-                    <p className="text-xs text-[#8A8378] flex items-center gap-1.5 mt-1">
-                      <FaClock size={11} />
-                      {new Date(order.placedAt).toLocaleString()}
-                    </p>
-                    <p className="text-xs text-[#8A8378] mt-1">
-                      {order.items.length} item{order.items.length > 1 ? "s" : ""}
-                    </p>
-                  </div>
-                  <span className="bg-[#FCF0D6] text-[#9C7311] text-xs font-bold px-3 py-1 rounded-full shrink-0">
-                    {displayStatus(order)}
-                  </span>
-                </div>
+            {orders.map((order) => {
+              const currentDeliveryStatus = displayStatus(order);
+              const canCustomerConfirm =
+                currentDeliveryStatus === "Out for Delivery" ||
+                currentDeliveryStatus === "Arrived";
 
-                <div className="mt-3 space-y-2">
-                  {order.items.map((item, index) => (
-                    <div key={index} className="flex items-start justify-between gap-3 text-sm">
-                      <div>
-                        <p className="text-[#5A5448]">
-                          {item.quantity}× {item.name}
-                        </p>
-                        {item.addOns?.length > 0 && (
-                          <p className="text-xs text-[#8A8378] mt-0.5">
-                            + {item.addOns.map((addOn) => addOn.name).join(", ")}
+              return (
+                <div key={order.id} className="bg-white rounded-2xl shadow p-5">
+                  {/* Live rider tracking */}
+                  {order.riderId &&
+                    order.customerLatitude &&
+                    order.customerLongitude && (
+                      <div className="mb-5">
+                        <LiveDeliveryMap
+                          customerLatitude={order.customerLatitude}
+                          customerLongitude={order.customerLongitude}
+                          riderLatitude={order.riderLatitude}
+                          riderLongitude={order.riderLongitude}
+                        />
+                      </div>
+                    )}
+
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-bold text-[#1F1B16]">
+                        {order.restaurantName || "Restaurant"}
+                      </p>
+                      <p className="text-xs text-[#8A8378] mt-1">
+                        Order #{String(order.id).slice(-6)}
+                      </p>
+                      <p className="text-xs text-[#8A8378] flex items-center gap-1.5 mt-1">
+                        <FaClock size={11} />
+                        {new Date(order.placedAt).toLocaleString()}
+                      </p>
+                      <p className="text-xs text-[#8A8378] mt-1">
+                        {order.items.length} item{order.items.length > 1 ? "s" : ""}
+                      </p>
+                    </div>
+                    <span className="bg-[#FCF0D6] text-[#9C7311] text-xs font-bold px-3 py-1 rounded-full shrink-0">
+                      {currentDeliveryStatus}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 space-y-2">
+                    {order.items.map((item, index) => (
+                      <div
+                        key={index}
+                        className="flex items-start justify-between gap-3 text-sm"
+                      >
+                        <div>
+                          <p className="text-[#5A5448]">
+                            {item.quantity}× {item.name}
                           </p>
+                          {item.addOns?.length > 0 && (
+                            <p className="text-xs text-[#8A8378] mt-0.5">
+                              +{" "}
+                              {item.addOns.map((addOn) => addOn.name).join(", ")}
+                            </p>
+                          )}
+                        </div>
+                        <span className="font-semibold text-[#1F1B16] shrink-0">
+                          ₦{(item.price * item.quantity).toLocaleString()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-3 pt-3 border-t border-[#EDE4D3] flex items-center justify-between">
+                    <span className="text-sm font-bold text-[#8A8378]">Total</span>
+                    <span className="font-black text-[#1F1B16]">
+                      ₦{order.total.toLocaleString()}
+                    </span>
+                  </div>
+
+                  {/* Delivery Tracking & Confirm Delivery Action */}
+                  {order.status === "Ready" &&
+                    order.deliveryStatus !== "Delivered" && (
+                      <div className="mt-4 bg-[#F5FBEF] border border-[#D8EACD] rounded-2xl p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+                            🚴
+                          </div>
+                          <div>
+                            <p className="font-black text-[#1F1B16]">
+                              {order.deliveryStatus === "Arrived"
+                                ? "Rider has arrived at your location!"
+                                : order.deliveryStatus === "Out for Delivery"
+                                ? "Rider is on the way"
+                                : "Waiting for rider"}
+                            </p>
+                            <p className="text-xs text-[#8A8378] mt-1">
+                              {order.riderName
+                                ? `${order.riderName} is delivering your order`
+                                : "A rider will be assigned to your order soon"}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Customer Action Button */}
+                        {canCustomerConfirm && (
+                          <div className="mt-4">
+                            <button
+                              onClick={() => handleConfirmDelivery(order.id)}
+                              className="w-full flex items-center justify-center gap-2 bg-[#3B6255] hover:bg-[#2E4C42] text-white py-3 px-4 rounded-xl font-bold transition shadow-md"
+                            >
+                              <FaCheckCircle size={16} /> Confirm Delivery Received
+                            </button>
+                          </div>
                         )}
                       </div>
-                      <span className="font-semibold text-[#1F1B16] shrink-0">
-                        ₦{(item.price * item.quantity).toLocaleString()}
-                      </span>
-                    </div>
-                  ))}
+                    )}
                 </div>
-
-                <div className="mt-3 pt-3 border-t border-[#EDE4D3] flex items-center justify-between">
-                  <span className="text-sm font-bold text-[#8A8378]">Total</span>
-                  <span className="font-black text-[#1F1B16]">
-                    ₦{order.total.toLocaleString()}
-                  </span>
-                </div>
-                {/* Delivery Tracking — only once the vendor has marked the
-                    order Ready (so a rider can actually be assigned), and
-                    only until it's been delivered. */}
-{order.status === "Ready" && order.deliveryStatus !== "Delivered" && (
-<div className="mt-4 bg-[#F5FBEF] border border-[#D8EACD] rounded-2xl p-4">
-  <div className="flex items-center gap-3">
-
-    <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
-      🚴
-    </div>
-
-    <div>
-      <p className="font-black text-[#1F1B16]">
-        {order.deliveryStatus === "Out for Delivery"
-          ? "Rider is on the way"
-          : "Waiting for rider"}
-      </p>
-
-      <p className="text-xs text-[#8A8378] mt-1">
-        {order.riderName
-          ? `${order.riderName} is delivering your order`
-          : "A rider will be assigned to your order soon"}
-      </p>
-    </div>
-  </div>
-
-  {/* Rider details */}
-  {order.riderName && (
-    <div className="mt-4 bg-white rounded-xl p-3 flex items-center justify-between">
-      <div>
-        <p className="text-xs text-[#8A8378]">
-          Your Rider
-        </p>
-
-        <p className="font-bold text-[#1F1B16]">
-          {order.riderName}
-        </p>
-      </div>
-
-      <span className="text-xs font-bold bg-green-100 text-green-700 px-3 py-1 rounded-full">
-        {order.deliveryStatus}
-      </span>
-    </div>
-  )}
-</div>
-)}
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

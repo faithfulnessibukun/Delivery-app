@@ -26,15 +26,11 @@ import {
   pushRiderLocationToBatch,
 } from "../utils/deliveryPools";
 
-// How long (ms) an offer this rider ignored/let expire stays hidden
-// from them before it's eligible to be shown again.
 const DISMISS_COOLDOWN_MS = 45000;
 
-// Workflow stages shown per delivery type. Food has a 4-step flow;
-// courier is simpler (assigned -> out for delivery -> delivered), with
-// "Out for Delivery" set automatically once the rider's GPS starts moving.
-const FOOD_STEPS = ["Accepted by Rider", "Picked Up", "Out for Delivery", "Delivered"];
-const FOOD_STEP_LABELS = ["Accepted", "Pickup", "On the Way", "Delivered"];
+// Food workflow steps for rider display
+const FOOD_STEPS = ["Accepted by Rider", "Picked Up", "Out for Delivery", "Arrived"];
+const FOOD_STEP_LABELS = ["Accepted", "Pickup", "On the Way", "Arrived"];
 
 function RiderDashboard() {
   const navigate = useNavigate();
@@ -56,7 +52,7 @@ function RiderDashboard() {
   const [earnings, setEarnings] = useState(0);
   const [currentOffer, setCurrentOffer] = useState(null);
 
-  const dismissedRef = useRef(new Map()); // poolId -> dismissedAt timestamp
+  const dismissedRef = useRef(new Map());
   const currentOfferRef = useRef(null);
   currentOfferRef.current = currentOffer;
 
@@ -74,13 +70,12 @@ function RiderDashboard() {
 
         setRider(currentUser);
 
-        // Load rider earnings from user_settings or rider earnings table
         try {
           const { data: settings, error } = await supabase
-            .from('user_settings')
-            .select('value')
-            .eq('user_id', currentUser.id)
-            .eq('key', 'riderEarnings')
+            .from("user_settings")
+            .select("value")
+            .eq("user_id", currentUser.id)
+            .eq("key", "riderEarnings")
             .single();
 
           if (!error && settings) {
@@ -98,7 +93,7 @@ function RiderDashboard() {
     loadRider();
   }, [navigate]);
 
-  // --- Keep batch + completed lists in sync with both order stores ----
+  // --- Keep batch + completed lists in sync ----------------------------
   const refreshLists = useCallback(async () => {
     if (!rider) return;
     const batch = await getMyBatch(rider.id);
@@ -111,13 +106,11 @@ function RiderDashboard() {
     if (!rider) return;
     refreshLists();
 
-    // Poll for updates every 5 seconds
     const interval = setInterval(refreshLists, 5000);
-
     return () => clearInterval(interval);
   }, [rider, refreshLists]);
 
-  // --- Pay the rider once a delivery reaches "Delivered" ---------------
+  // --- Pay the rider once customer marks delivery as "Delivered" -------
   useEffect(() => {
     if (!rider) return;
 
@@ -135,14 +128,16 @@ function RiderDashboard() {
       if (totalNewEarnings > 0) {
         setEarnings((prev) => {
           const next = prev + totalNewEarnings;
-          // Save to Supabase
           supabase
-            .from('user_settings')
-            .upsert({
-              user_id: rider.id,
-              key: 'riderEarnings',
-              value: JSON.stringify(next),
-            }, { onConflict: 'user_id,key' })
+            .from("user_settings")
+            .upsert(
+              {
+                user_id: rider.id,
+                key: "riderEarnings",
+                value: JSON.stringify(next),
+              },
+              { onConflict: "user_id,key" }
+            )
             .catch((error) => console.error("Error saving earnings:", error));
           return next;
         });
@@ -150,16 +145,15 @@ function RiderDashboard() {
     };
 
     savePaidDeliveries();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myBatch, rider]);
 
-  // --- Offer polling: only when batch has room and nothing is showing --
+  // --- Offer polling ---------------------------------------------------
   useEffect(() => {
     if (!rider) return;
 
     const poll = async () => {
-      if (currentOfferRef.current) return; // already showing one
-      if (myBatch.length >= MAX_BATCH_SIZE) return; // batch locked
+      if (currentOfferRef.current) return;
+      if (myBatch.length >= MAX_BATCH_SIZE) return;
 
       try {
         const now = Date.now();
@@ -202,13 +196,9 @@ function RiderDashboard() {
     refreshLists();
   };
 
-  const handleIgnoreOffer = (offer, { expired }) => {
+  const handleIgnoreOffer = (offer) => {
     dismissedRef.current.set(offer.poolId, Date.now());
     setCurrentOffer(null);
-    if (expired) {
-      // Offer just times out for THIS rider — it's still available to
-      // everyone else, so no toast needed, it just quietly disappears.
-    }
   };
 
   const handleCancelPickup = (poolId) => {
@@ -218,21 +208,31 @@ function RiderDashboard() {
   };
 
   const handleAdvanceFood = (poolId, nextStatus) => {
+    if (nextStatus === "Delivered") {
+      toast.error("Only the customer can confirm receipt and mark as delivered.");
+      return;
+    }
     updateDeliveryStatus(poolId, nextStatus);
     refreshLists();
     if (nextStatus === "Picked Up") toast.success("Food picked up!");
     if (nextStatus === "Out for Delivery")
       toast.success("You're on the way to the customer!");
-    if (nextStatus === "Delivered") toast.success("Order delivered successfully!");
+    if (nextStatus === "Arrived")
+      toast.success("Notified customer that you have arrived!");
   };
 
   const handleAdvanceCourier = (poolId, nextStatus) => {
+    if (nextStatus === "Delivered") {
+      toast.error("Only the customer can confirm receipt and mark as delivered.");
+      return;
+    }
     updateDeliveryStatus(poolId, nextStatus);
     refreshLists();
-    if (nextStatus === "Delivered") toast.success("Package delivered successfully!");
+    if (nextStatus === "Arrived")
+      toast.success("Notified customer that package has arrived!");
   };
 
-  // --- Rider live location: GPS watch + push onto every active delivery
+  // --- Rider live location tracking ------------------------------------
   useEffect(() => {
     if (!rider) return;
 
@@ -273,7 +273,6 @@ function RiderDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      {/* Offer popup */}
       <DeliveryOfferPopup
         offer={currentOffer}
         onAccept={handleAcceptOffer}
@@ -375,7 +374,6 @@ function RiderDashboard() {
             </div>
           )}
 
-          {/* Batch map (food deliveries with GPS coords) */}
           {mapTarget && (
             <div className="bg-white rounded-2xl shadow overflow-hidden mb-5">
               <LiveDeliveryMap
@@ -467,8 +465,6 @@ function RiderDashboard() {
   );
 }
 
-// --- Batch cards ---------------------------------------------------------
-
 function FoodBatchCard({ delivery, onCancel, onAdvance }) {
   const order = delivery.raw;
   const status = delivery.workflowStatus;
@@ -534,11 +530,17 @@ function FoodBatchCard({ delivery, onCancel, onAdvance }) {
 
         {status === "Out for Delivery" && (
           <button
-            onClick={() => onAdvance(delivery.poolId, "Delivered")}
-            className="w-full bg-[#E8491D] hover:bg-[#C73A15] text-white py-3 rounded-xl font-bold transition"
+            onClick={() => onAdvance(delivery.poolId, "Arrived")}
+            className="w-full bg-[#F4B740] hover:bg-[#DFA52F] text-[#1F1B16] py-3 rounded-xl font-bold transition"
           >
-            ✓ Mark as Delivered
+            📍 Mark as Arrived at Location
           </button>
+        )}
+
+        {status === "Arrived" && (
+          <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 text-xs p-3 rounded-xl font-medium text-center">
+            ⏳ Waiting for customer to confirm receipt and mark as delivered.
+          </div>
         )}
       </div>
     </div>
@@ -594,11 +596,17 @@ function CourierBatchCard({ delivery, onCancel, onAdvance }) {
 
         {(status === "Rider Assigned" || status === "Out for Delivery") && (
           <button
-            onClick={() => onAdvance(delivery.poolId, "Delivered")}
-            className="w-full bg-[#E8491D] hover:bg-[#C73A15] text-white py-3 rounded-xl font-bold transition"
+            onClick={() => onAdvance(delivery.poolId, "Arrived")}
+            className="w-full bg-[#F4B740] hover:bg-[#DFA52F] text-[#1F1B16] py-3 rounded-xl font-bold transition"
           >
-            ✓ Mark as Delivered
+            📍 Mark as Arrived at Location
           </button>
+        )}
+
+        {status === "Arrived" && (
+          <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 text-xs p-3 rounded-xl font-medium text-center">
+            ⏳ Waiting for customer to confirm receipt and mark as delivered.
+          </div>
         )}
       </div>
     </div>

@@ -17,9 +17,6 @@ import { useCart } from "../context/CartContext";
 import { supabase } from "../lib/supabase";
 import { getCurrentUser } from "../utils/supabaseStorage";
 
-// Cycle of accent colors from the Chop Chop palette — used to give each
-// category / restaurant ribbon a distinct, deliberate identity instead
-// of everything defaulting to the same chili accent.
 const ACCENTS = [
   { solid: "bg-[#3B6255]", soft: "bg-[#E3EAE6]", text: "text-[#3B6255]" },
   { solid: "bg-[#F4B740]", soft: "bg-[#FCF0D6]", text: "text-[#9C7311]" },
@@ -27,7 +24,6 @@ const ACCENTS = [
   { solid: "bg-[#6B4A8A]", soft: "bg-[#EEE6F4]", text: "text-[#6B4A8A]" },
 ];
 
-// Returns a greeting that changes with the time of day.
 function getGreeting() {
   const hour = new Date().getHours();
   if (hour < 12) return "Good morning";
@@ -35,56 +31,45 @@ function getGreeting() {
   return "Good evening";
 }
 
-// Turns a raw Supabase menu_items row (with its joined restaurant) into
-// the flat shape the rest of this page already expects.
+// Maps Supabase menu_items row + joined restaurants table
 function mapMenuItem(item) {
+  const vendorId = item.restaurants?.vendor_id;
+  const restaurantId = item.restaurant_id;
+
   return {
     id: item.menu_item_id,
-    vendorId: item.restaurants?.vendor_id,
-    restaurantId: item.restaurant_id,
-    restaurantName: item.restaurants?.name,
-    restaurantAddress: item.restaurants?.address_line,
-    image: item.image_url,
-    category: item.category,
-    rating: 4.5, // no ratings table yet — placeholder until reviews are built
+    vendorId: vendorId, // ID used for navigation to /restaurant/:vendorId
+    restaurantId: restaurantId,
+    restaurantName: item.restaurants?.name || "Unknown Restaurant",
+    restaurantAddress: item.restaurants?.address_line || "Address unavailable",
+    image: item.image_url || item.restaurants?.logo_url,
+    category: item.category || "General",
+    rating: 4.5,
     name: item.name,
     itemName: item.name,
     price: item.price,
   };
 }
 
-// This is the main screen customers land on after logging in.
-// It shows: a search bar, a promo video with two service buttons,
-// food categories, a list of restaurants, and a "send a package" form.
 function CustomerHome() {
-  // Which category chip is currently selected (defaults to "All").
   const [selectedCategory, setSelectedCategory] = useState("All");
-  // What the user has typed into the search box.
   const [searchTerm, setSearchTerm] = useState("");
-  // Tracks the browser's geolocation lookup so we can show a live status pill.
   const [location, setLocation] = useState({
-    status: "loading", // loading | ready | denied | error
+    status: "loading",
     label: "",
     latitude: null,
     longitude: null,
   });
-  // Fields for the "Send a Package" form further down the page.
+
   const [pickupAddress, setPickupAddress] = useState("");
   const [destinationAddress, setDestinationAddress] = useState("");
   const [packageSize, setPackageSize] = useState("Small");
   const navigate = useNavigate();
-  // Shared cart state (item count + a function to open the cart drawer)
-  // comes from CartContext so it works the same on every page.
   const { cartCount, openCart } = useCart();
 
-  // The logged-in customer, loaded from Supabase on mount.
   const [currentUser, setCurrentUser] = useState(null);
-
-  // Real menu items pulled from Supabase.
   const [menus, setMenus] = useState([]);
 
-  // Refs let us scroll smoothly to the Restaurants / Send a Package
-  // sections when the buttons inside the video are clicked.
   const restaurantsRef = useRef(null);
   const riderRef = useRef(null);
 
@@ -97,7 +82,6 @@ function CustomerHome() {
 
   const firstName = currentUser?.full_name?.split(" ")[0] || "there";
 
-  // Load the logged-in user once on mount.
   useEffect(() => {
     const loadUser = async () => {
       const user = await getCurrentUser();
@@ -106,14 +90,21 @@ function CustomerHome() {
     loadUser();
   }, []);
 
-  // Loads real restaurants+menu items from Supabase.
+  // Fetch all active menu items along with their parent restaurant info
   useEffect(() => {
     const loadMenus = async () => {
       const { data, error } = await supabase
         .from("menu_items")
-        .select(
-          `*, restaurants ( restaurant_id, name, address_line, vendor_id )`
-        )
+        .select(`
+          *,
+          restaurants!inner (
+            restaurant_id,
+            vendor_id,
+            name,
+            address_line,
+            logo_url
+          )
+        `)
         .eq("is_available", true);
 
       if (error) {
@@ -127,14 +118,10 @@ function CustomerHome() {
 
     loadMenus();
 
-    // Refresh periodically so newly added menu items show up without a
-    // manual page reload.
     const interval = setInterval(loadMenus, 10000);
     return () => clearInterval(interval);
   }, []);
 
-  // "Send a Package" (courier) booking — saves directly to the
-  // courier_orders table in Supabase.
   const handleBookRider = () => {
     if (!pickupAddress.trim() || !destinationAddress.trim()) {
       alert("Please enter pickup and destination addresses.");
@@ -169,15 +156,12 @@ function CustomerHome() {
         }
 
         alert("Rider booked successfully!");
-
         setPickupAddress("");
         setDestinationAddress("");
         setPackageSize("Small");
       },
       () => {
-        alert(
-          "Please allow location access so we can locate you for delivery."
-        );
+        alert("Please allow location access so we can locate you for delivery.");
       },
       {
         enableHighAccuracy: true,
@@ -187,40 +171,32 @@ function CustomerHome() {
     );
   };
 
-  // Menu items belong to restaurants, but the same restaurant can have many
-  // items. This turns the flat list of menu items into a de-duplicated list
-  // of restaurants (one card per vendorId) for the "Restaurants" section.
-  const restaurants = useMemo(
-    () => [
-      ...new Map(
-        menus
-          .filter((menu) => menu.restaurantName)
-          .map((menu) => [
-            menu.vendorId,
-            {
-              vendorId: menu.vendorId,
-              restaurantName: menu.restaurantName,
-              restaurantAddress: menu.restaurantAddress,
-              image: menu.image,
-              category: menu.category,
-              rating: menu.rating || 4.5,
-            },
-          ])
-      ).values(),
-    ],
-    [menus]
-  );
+  // Group menu items into unique restaurant cards
+  const restaurants = useMemo(() => {
+    const uniqueMap = new Map();
 
-  // Builds the list of category chips ("All", "Pizza", "Local", ...) from
-  // whatever categories actually appear in the current menu items.
+    menus.forEach((menu) => {
+      if (menu.vendorId && !uniqueMap.has(menu.vendorId)) {
+        uniqueMap.set(menu.vendorId, {
+          vendorId: menu.vendorId,
+          restaurantId: menu.restaurantId,
+          restaurantName: menu.restaurantName,
+          restaurantAddress: menu.restaurantAddress,
+          image: menu.image,
+          category: menu.category,
+          rating: menu.rating || 4.5,
+        });
+      }
+    });
+
+    return Array.from(uniqueMap.values());
+  }, [menus]);
+
   const categories = useMemo(
     () => ["All", ...new Set(menus.map((menu) => menu.category).filter(Boolean))],
     [menus]
   );
 
-  // Restaurants filtered by the selected category AND the search term.
-  // Search matches on restaurant name, address, or any menu item name
-  // that belongs to that restaurant.
   const filteredRestaurants = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
 
@@ -245,11 +221,6 @@ function CustomerHome() {
     });
   }, [restaurants, menus, selectedCategory, searchTerm]);
 
-  // Grab the current location on page load and reverse-geocode it into
-  // a human readable label. Falls back gracefully if the user declines
-  // or the browser has no geolocation support. Saves the live coordinates
-  // to the customer's own row in Supabase (customers.lat/lng), so a
-  // rider/vendor viewing this order later can see where to deliver.
   useEffect(() => {
     if (!("geolocation" in navigator)) {
       setLocation({
@@ -270,7 +241,6 @@ function CustomerHome() {
           const res = await fetch(
             `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
           );
-
           const data = await res.json();
 
           const area =
@@ -282,7 +252,6 @@ function CustomerHome() {
             "";
 
           const city = data?.address?.city || data?.address?.state || "";
-
           const label =
             [area, city].filter(Boolean).join(", ") ||
             data?.display_name ||
@@ -298,7 +267,6 @@ function CustomerHome() {
           }
         } catch {
           const label = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
-
           setLocation({ status: "ready", label, latitude, longitude });
 
           if (currentUser?.id) {
@@ -353,8 +321,6 @@ function CustomerHome() {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            {/* Opens the cart drawer (see CartDrawer.jsx). The little badge
-                only shows once there's at least one item in the cart. */}
             <button
               onClick={openCart}
               className="relative bg-white/10 border border-white/10 hover:bg-white/20 rounded-full p-2.5 transition"
@@ -369,7 +335,6 @@ function CustomerHome() {
           </div>
         </div>
 
-        {/* Live location pill — the page's signature status indicator */}
         <div className="relative mt-6 ml-2 inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full pl-3 pr-4 py-2 max-w-full border border-white/10">
           <span className="relative flex h-2.5 w-2.5 shrink-0">
             {location.status === "loading" && (
@@ -401,7 +366,7 @@ function CustomerHome() {
         </div>
       </div>
 
-      {/* Video hero — promo + both services embedded directly on the video */}
+      {/* Video Hero */}
       <div className="mx-6 md:mx-10 lg:mx-16 mt-6 mb-8 rounded-3xl overflow-hidden shadow-xl relative animate-[fadeIn_0.6s_ease-out]">
         <video
           className="w-full h-96 md:h-[26rem] object-cover"
@@ -480,14 +445,13 @@ function CustomerHome() {
               <button
                 key={item}
                 onClick={() => setSelectedCategory(item)}
-                className={`px-5 py-3 rounded-2xl whitespace-nowrap transition font-bold shrink-0
-                  ${
-                    isActive
-                      ? "bg-[#1F1B16] text-white shadow"
-                      : item === "All"
-                      ? "bg-white text-[#5A5448] shadow hover:bg-[#EDE4D3]"
-                      : `${accent.soft} ${accent.text} hover:brightness-95`
-                  }`}
+                className={`px-5 py-3 rounded-2xl whitespace-nowrap transition font-bold shrink-0 ${
+                  isActive
+                    ? "bg-[#1F1B16] text-white shadow"
+                    : item === "All"
+                    ? "bg-white text-[#5A5448] shadow hover:bg-[#EDE4D3]"
+                    : `${accent.soft}${accent.text} hover:brightness-95`
+                }`}
               >
                 {item}
               </button>
@@ -513,57 +477,53 @@ function CustomerHome() {
           </div>
         ) : (
           <div className="grid md:grid-cols-3 gap-6">
-            {filteredRestaurants.map((restaurant, index) => {
-              const accent = ACCENTS[index % ACCENTS.length];
-
-              return (
-                <div
-                  key={restaurant.vendorId}
-                  className="bg-white rounded-2xl shadow overflow-hidden hover:shadow-xl transition"
-                >
-                  <div className="relative">
-                    <img
-                      src={restaurant.image || "https://via.placeholder.com/600x400"}
-                      alt={restaurant.restaurantName}
-                      className="w-full h-48 object-cover"
-                    />
-                  </div>
-
-                  <div className="p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="font-bold text-lg text-[#1F1B16]">
-                        {restaurant.restaurantName}
-                      </h3>
-                      <span className="flex items-center gap-1 text-sm font-bold text-[#E8491D] shrink-0">
-                        <FaFire size={12} />
-                        {restaurant.rating}
-                      </span>
-                    </div>
-
-                    <p className="text-sm text-[#8A8378] mt-1 flex items-center gap-1">
-                      <FaMapMarkerAlt size={12} className="shrink-0" />
-                      {restaurant.restaurantAddress}
-                    </p>
-
-                    <button
-                      onClick={() =>
-                        navigate(`/restaurant/${restaurant.vendorId}`, {
-                          state: { restaurantName: restaurant.restaurantName },
-                        })
-                      }
-                      className="mt-4 w-full bg-[#E8491D] text-white py-2.5 rounded-xl hover:bg-[#C73A15] transition font-bold"
-                    >
-                      View Menu
-                    </button>
-                  </div>
+            {filteredRestaurants.map((restaurant) => (
+              <div
+                key={restaurant.vendorId}
+                className="bg-white rounded-2xl shadow overflow-hidden hover:shadow-xl transition"
+              >
+                <div className="relative">
+                  <img
+                    src={restaurant.image || "https://via.placeholder.com/600x400"}
+                    alt={restaurant.restaurantName}
+                    className="w-full h-48 object-cover"
+                  />
                 </div>
-              );
-            })}
+
+                <div className="p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="font-bold text-lg text-[#1F1B16]">
+                      {restaurant.restaurantName}
+                    </h3>
+                    <span className="flex items-center gap-1 text-sm font-bold text-[#E8491D] shrink-0">
+                      <FaFire size={12} />
+                      {restaurant.rating}
+                    </span>
+                  </div>
+
+                  <p className="text-sm text-[#8A8378] mt-1 flex items-center gap-1">
+                    <FaMapMarkerAlt size={12} className="shrink-0" />
+                    {restaurant.restaurantAddress}
+                  </p>
+
+                  <button
+                    onClick={() =>
+                      navigate(`/restaurant/${restaurant.vendorId}`, {
+                        state: { restaurantName: restaurant.restaurantName },
+                      })
+                    }
+                    className="mt-4 w-full bg-[#E8491D] text-white py-2.5 rounded-xl hover:bg-[#C73A15] transition font-bold"
+                  >
+                    View Menu
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
 
-      {/* Send a Package — pickup/destination + mock fare estimate */}
+      {/* Send a Package */}
       <div ref={riderRef} className="px-6 md:px-10 lg:px-16 pb-24 scroll-mt-6">
         <h2
           className="text-2xl font-black mb-4 text-[#1F1B16]"

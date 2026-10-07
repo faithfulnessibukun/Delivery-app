@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase.js';
+import { distanceKm } from './geo.js';
 
 // ============================================================
 // USER/PROFILE MANAGEMENT (unchanged — already matched the schema)
@@ -63,6 +64,142 @@ export async function getVendorDetails(vendorId) {
     return null;
   }
   return data;
+}
+
+// ============================================================
+// RIDER PROFILE + PRESENCE
+// Any user (customer included) with a `riders` row can work as a rider.
+// ============================================================
+
+export async function getRiderProfile(userId) {
+  const { data, error } = await supabase
+    .from('riders')
+    .select('*')
+    .eq('rider_id', userId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Error fetching rider profile:', error);
+    return null;
+  }
+  return data;
+}
+
+// The signed-in user, only if they can work as a rider: a rider account,
+// or any non-vendor account that has switched on rider mode.
+export async function getRiderUser() {
+  const user = await getCurrentUser();
+  if (!user || user.role === 'vendor') return null;
+  if (user.role === 'rider') return user;
+  return (await getRiderProfile(user.id)) ? user : null;
+}
+
+export async function becomeRider(userId, details = {}) {
+  const { error } = await supabase.from('riders').upsert(
+    {
+      rider_id: userId,
+      vehicle_type: details.vehicleType || null,
+      vehicle_plate: details.vehiclePlate || null,
+      license_number: details.licenseNumber || null,
+    },
+    { onConflict: 'rider_id' }
+  );
+  if (error) {
+    console.error('Error creating rider profile:', error);
+    throw error;
+  }
+}
+
+export async function setRiderPresence(riderId, latitude, longitude, isOnline) {
+  const { error } = await supabase.from('rider_locations').upsert(
+    {
+      rider_id: riderId,
+      lat: latitude,
+      lng: longitude,
+      is_online: isOnline,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'rider_id' }
+  );
+  if (error) console.error('Error updating rider presence:', error);
+}
+
+export async function setRiderOffline(riderId) {
+  const { error } = await supabase
+    .from('rider_locations')
+    .update({ is_online: false, updated_at: new Date().toISOString() })
+    .eq('rider_id', riderId);
+  if (error) console.error('Error setting rider offline:', error);
+}
+
+// Online riders (seen within `maxAgeMs`) within `maxKm` of a point,
+// nearest first. `excludeIds` keeps e.g. the customer who placed the
+// order from being offered their own delivery.
+export async function getNearbyRiders(
+  latitude,
+  longitude,
+  { maxKm = 10, maxAgeMs = 2 * 60 * 1000, excludeIds = [] } = {}
+) {
+  const since = new Date(Date.now() - maxAgeMs).toISOString();
+  const { data, error } = await supabase
+    .from('rider_locations')
+    .select('rider_id, lat, lng, updated_at')
+    .eq('is_online', true)
+    .gte('updated_at', since);
+
+  if (error) {
+    console.error('Error fetching nearby riders:', error);
+    return [];
+  }
+
+  const rows = (data || []).filter((r) => !excludeIds.includes(r.rider_id));
+  const usersById = await getUsersById(rows.map((r) => r.rider_id));
+  const { data: riderRows } = rows.length
+    ? await supabase
+        .from('riders')
+        .select('rider_id, vehicle_type, vehicle_plate')
+        .in('rider_id', rows.map((r) => r.rider_id))
+    : { data: [] };
+  const vehiclesById = new Map((riderRows || []).map((r) => [r.rider_id, r]));
+
+  return rows
+    .map((r) => ({
+      id: r.rider_id,
+      name: usersById.get(r.rider_id)?.full_name || 'Rider',
+      phone: usersById.get(r.rider_id)?.phone || '',
+      vehicleType: vehiclesById.get(r.rider_id)?.vehicle_type || null,
+      vehiclePlate: vehiclesById.get(r.rider_id)?.vehicle_plate || null,
+      latitude: r.lat,
+      longitude: r.lng,
+      distanceKm: distanceKm(latitude, longitude, r.lat, r.lng),
+    }))
+    .filter((r) => r.distanceKm <= maxKm)
+    .sort((a, b) => a.distanceKm - b.distanceKm);
+}
+
+export async function getRestaurantForVendor(vendorId) {
+  const { data, error } = await supabase
+    .from('restaurants')
+    .select('restaurant_id, name, address_line, lat, lng')
+    .eq('vendor_id', vendorId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Error fetching restaurant:', error);
+    return null;
+  }
+  return data;
+}
+
+export async function saveRestaurantLocation(vendorId, latitude, longitude) {
+  const { error } = await supabase
+    .from('restaurants')
+    .update({ lat: latitude, lng: longitude })
+    .eq('vendor_id', vendorId);
+  if (error) {
+    console.error('Error saving restaurant location:', error);
+    throw error;
+  }
 }
 
 // Looks up the restaurant_id owned by a vendor — needed constantly
@@ -301,6 +438,7 @@ const ORDER_FIELD_MAP = {
   customerLatitude: 'customer_lat',
   customerLongitude: 'customer_lng',
   deliveryAddress: 'delivery_address',
+  offeredRiderIds: 'offered_rider_ids',
 };
 
 function mapOrderUpdates(updates) {
@@ -331,6 +469,7 @@ function shapeOrder(row, restaurantsById, usersById, itemsByOrderId) {
 
     riderId: row.rider_id,
     riderName: rider?.full_name || null,
+    offeredRiderIds: row.offered_rider_ids || [],
 
     items: itemsByOrderId.get(row.order_id) || [],
 

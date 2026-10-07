@@ -79,10 +79,21 @@ export async function getAllNormalized() {
 }
 
 // Deliveries anyone could still be offered (used by the popup poller).
-export async function getAvailableForOffers() {
+// When a riderId is given, only deliveries this rider may take are
+// returned: not their own order (a customer can also be a rider), and,
+// for food orders, only those the vendor opened to everyone or picked
+// this rider for.
+export async function getAvailableForOffers(riderId) {
   const all = await getAllNormalized();
   return all
     .filter((d) => d.isAvailable)
+    .filter((d) => {
+      if (!riderId) return true;
+      if (d.raw.customerId === riderId) return false;
+      if (d.type !== "food") return true;
+      const offered = d.raw.offeredRiderIds || [];
+      return offered.length === 0 || offered.includes(riderId);
+    })
     .sort((a, b) => {
       const aDate = typeof a.placedAt === 'string' 
         ? new Date(a.placedAt).getTime() 
@@ -119,6 +130,9 @@ export async function acceptDelivery(poolId, rider) {
       if (!target || target.status !== "Ready" || target.riderId) {
         return false;
       }
+      if (target.customerId === rider.id) return false;
+      const offered = target.offeredRiderIds || [];
+      if (offered.length > 0 && !offered.includes(rider.id)) return false;
 
       await updateOrder(rawId, {
         riderId: rider.id,

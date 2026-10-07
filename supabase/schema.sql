@@ -439,6 +439,64 @@ alter publication supabase_realtime add table public.menu_items;
 alter publication supabase_realtime add table public.cart_items;
 
 
+-- ----------------------------------------------------------------------------
+-- 11. Rider presence + vendor-chosen riders
+--     * restaurants get coordinates so vendors can find nearby riders
+--     * rider_locations holds each online rider's last known position
+--       (any user with a riders row, customers included, can go online)
+--     * orders.offered_rider_ids = riders the vendor picked for this order.
+--       Empty = open to every rider.
+-- ----------------------------------------------------------------------------
+alter table public.restaurants add column if not exists lat double precision;
+alter table public.restaurants add column if not exists lng double precision;
+
+alter table public.orders
+  add column if not exists offered_rider_ids uuid[] not null default '{}';
+
+create table if not exists public.rider_locations (
+  rider_id   uuid primary key references public.riders (rider_id) on delete cascade,
+  lat        double precision not null,
+  lng        double precision not null,
+  is_online  boolean not null default false,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.rider_locations enable row level security;
+
+drop policy if exists "rider_locations: read all" on public.rider_locations;
+create policy "rider_locations: read all"
+  on public.rider_locations for select
+  using (auth.uid() is not null);
+
+drop policy if exists "rider_locations: owner writes" on public.rider_locations;
+create policy "rider_locations: owner writes"
+  on public.rider_locations for all
+  using (auth.uid() = rider_id)
+  with check (auth.uid() = rider_id);
+
+-- Riders the vendor picked can see and claim an unassigned order.
+drop policy if exists "orders: offered riders read" on public.orders;
+create policy "orders: offered riders read"
+  on public.orders for select
+  using (
+    rider_id is null
+    and status = 'Ready'
+    and (offered_rider_ids = '{}' or auth.uid() = any (offered_rider_ids))
+  );
+
+drop policy if exists "orders: offered riders claim" on public.orders;
+create policy "orders: offered riders claim"
+  on public.orders for update
+  using (
+    rider_id is null
+    and status = 'Ready'
+    and (offered_rider_ids = '{}' or auth.uid() = any (offered_rider_ids))
+  )
+  with check (auth.uid() = rider_id);
+
+alter publication supabase_realtime add table public.rider_locations;
+
+
 -- ============================================================================
 --  DONE. Next steps:
 --    1. Dashboard -> Authentication -> Sign In / Providers -> Email

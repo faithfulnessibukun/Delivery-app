@@ -12,7 +12,11 @@ import toast from "react-hot-toast";
 import LiveDeliveryMap from "../components/LiveDeliveryMap";
 import DeliveryOfferPopup from "../components/DeliveryOfferPopup";
 import { supabase } from "../lib/supabase";
-import { getCurrentUser } from "../utils/supabaseStorage";
+import {
+  getRiderUser,
+  setRiderPresence,
+  setRiderOffline,
+} from "../utils/supabaseStorage";
 
 import {
   MAX_BATCH_SIZE,
@@ -27,6 +31,7 @@ import {
 } from "../utils/deliveryPools";
 
 const DISMISS_COOLDOWN_MS = 45000;
+const PRESENCE_INTERVAL_MS = 10000;
 
 // Food workflow steps for rider display
 const FOOD_STEPS = ["Accepted by Rider", "Picked Up", "Out for Delivery", "Arrived"];
@@ -51,6 +56,11 @@ function RiderDashboard() {
   const [myCompleted, setMyCompleted] = useState([]);
   const [earnings, setEarnings] = useState(0);
   const [currentOffer, setCurrentOffer] = useState(null);
+  // Online riders show up for vendors to pick and receive offers.
+  const [online, setOnline] = useState(true);
+  const onlineRef = useRef(true);
+  onlineRef.current = online;
+  const lastPresenceRef = useRef(0);
 
   const dismissedRef = useRef(new Map());
   const currentOfferRef = useRef(null);
@@ -60,9 +70,9 @@ function RiderDashboard() {
   useEffect(() => {
     const loadRider = async () => {
       try {
-        const currentUser = await getCurrentUser();
+        const currentUser = await getRiderUser();
 
-        if (!currentUser || currentUser.role !== "rider") {
+        if (!currentUser) {
           toast.error("Please login as a rider.");
           navigate("/");
           return;
@@ -149,7 +159,7 @@ function RiderDashboard() {
 
   // --- Offer polling ---------------------------------------------------
   useEffect(() => {
-    if (!rider) return;
+    if (!rider || !online) return;
 
     const poll = async () => {
       if (currentOfferRef.current) return;
@@ -157,7 +167,7 @@ function RiderDashboard() {
 
       try {
         const now = Date.now();
-        const all = await getAvailableForOffers();
+        const all = await getAvailableForOffers(rider.id);
         const available = all.filter((d) => {
           const dismissedAt = dismissedRef.current.get(d.poolId);
           return !dismissedAt || now - dismissedAt > DISMISS_COOLDOWN_MS;
@@ -181,10 +191,10 @@ function RiderDashboard() {
       window.removeEventListener("ordersUpdated", poll);
       window.removeEventListener("courierOrdersUpdated", poll);
     };
-  }, [rider, myBatch.length]);
+  }, [rider, online, myBatch.length]);
 
-  const handleAcceptOffer = (offer) => {
-    const won = acceptDelivery(offer.poolId, rider);
+  const handleAcceptOffer = async (offer) => {
+    const won = await acceptDelivery(offer.poolId, rider);
     setCurrentOffer(null);
 
     if (!won) {
@@ -252,6 +262,13 @@ function RiderDashboard() {
         window.dispatchEvent(new Event("riderLocationUpdated"));
 
         pushRiderLocationToBatch(rider.id, latitude, longitude);
+
+        // Publish presence so vendors can find this rider nearby.
+        const now = Date.now();
+        if (onlineRef.current && now - lastPresenceRef.current > PRESENCE_INTERVAL_MS) {
+          lastPresenceRef.current = now;
+          setRiderPresence(rider.id, latitude, longitude, true);
+        }
       },
       () => {
         toast.error("Please allow location access for live delivery tracking.");
@@ -259,8 +276,23 @@ function RiderDashboard() {
       { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
     );
 
-    return () => navigator.geolocation.clearWatch(watchId);
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+      setRiderOffline(rider.id);
+    };
   }, [rider]);
+
+  const toggleOnline = () => {
+    const next = !online;
+    setOnline(next);
+    if (next) {
+      lastPresenceRef.current = 0; // publish on the next GPS fix
+      toast.success("You're online — vendors can now see you nearby.");
+    } else {
+      setRiderOffline(rider.id);
+      toast("You're offline. No new offers.", { icon: "🌙" });
+    }
+  };
 
   if (!rider) return null;
 
@@ -288,16 +320,36 @@ function RiderDashboard() {
             </div>
             <div>
               <h1 className="text-2xl font-black">Rider Dashboard</h1>
-              <p className="text-[#C9C2B4] text-sm">Welcome, {rider.fullName}</p>
+              <p className="text-[#C9C2B4] text-sm">Welcome, {rider.full_name}</p>
             </div>
           </div>
 
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleOnline}
+              className={`px-4 py-2.5 rounded-xl font-bold transition ${
+                online
+                  ? "bg-[#3B6255] hover:bg-[#2F5046]"
+                  : "bg-white/10 hover:bg-white/20"
+              }`}
+            >
+              {online ? "● Online" : "○ Offline"}
+            </button>
+            {rider.role === "customer" && (
+              <button
+                onClick={() => navigate("/customer-home")}
+                className="bg-white/10 hover:bg-white/20 px-4 py-2.5 rounded-xl font-bold transition"
+              >
+                Customer mode
+              </button>
+            )}
           <button
             onClick={handleLogout}
             className="flex items-center gap-2 bg-white/10 hover:bg-white/20 px-4 py-2.5 rounded-xl font-bold transition"
           >
             <span className="hidden sm:inline">Logout</span>
           </button>
+          </div>
         </div>
       </div>
 

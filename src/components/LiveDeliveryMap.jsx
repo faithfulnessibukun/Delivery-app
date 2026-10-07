@@ -4,6 +4,7 @@ import {
   TileLayer,
   Marker,
   Popup,
+  Polyline,
   useMap,
 } from "react-leaflet";
 import L from "leaflet";
@@ -21,15 +22,32 @@ L.Icon.Default.mergeOptions({
     "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png",
 });
 
-// Automatically move the map when the location changes
-function MapCenter({ latitude, longitude }) {
+const emojiIcon = (emoji) =>
+  L.divIcon({
+    html: `<div style="font-size:28px;line-height:1;text-align:center">${emoji}</div>`,
+    className: "",
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+    popupAnchor: [0, -14],
+  });
+
+const riderIcon = emojiIcon("🏍️");
+const customerIcon = emojiIcon("🏠");
+
+// Keeps both the rider and the customer in view as the rider moves.
+function FitBounds({ points }) {
   const map = useMap();
+  const key = points.map((p) => p.join(",")).join("|");
 
   useEffect(() => {
-    if (latitude && longitude) {
-      map.setView([latitude, longitude], 15);
+    if (points.length === 0) return;
+    if (points.length === 1) {
+      map.setView(points[0], 15);
+    } else {
+      map.fitBounds(points, { padding: [50, 50], maxZoom: 16 });
     }
-  }, [latitude, longitude, map]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, map]);
 
   return null;
 }
@@ -42,12 +60,12 @@ function LiveDeliveryMap({
 }) {
   // Use rider location first.
   // If rider location doesn't exist yet, use customer location.
-  const center =
-    riderLatitude && riderLongitude
-      ? [riderLatitude, riderLongitude]
-      : customerLatitude && customerLongitude
-      ? [customerLatitude, customerLongitude]
-      : [6.5244, 3.3792]; // Lagos fallback
+  const hasRider = !!(riderLatitude && riderLongitude);
+  const hasCustomer = !!(customerLatitude && customerLongitude);
+  const riderPoint = hasRider ? [riderLatitude, riderLongitude] : null;
+  const customerPoint = hasCustomer ? [customerLatitude, customerLongitude] : null;
+  const points = [riderPoint, customerPoint].filter(Boolean);
+  const center = points[0] || [6.5244, 3.3792]; // Lagos fallback
 
   return (
     <div className="w-full h-[400px] rounded-2xl overflow-hidden shadow-lg">
@@ -62,43 +80,34 @@ function LiveDeliveryMap({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        {/* Customer location */}
-        {customerLatitude && customerLongitude && (
-          <Marker
-            position={[
-              customerLatitude,
-              customerLongitude,
-            ]}
-          >
+        {customerPoint && (
+          <Marker position={customerPoint} icon={customerIcon}>
             <Popup>
-              🏠 <strong>Customer Location</strong>
+              <strong>Customer</strong>
               <br />
               Delivery destination
             </Popup>
           </Marker>
         )}
 
-        {/* Rider location */}
-        {riderLatitude && riderLongitude && (
-          <Marker
-            position={[
-              riderLatitude,
-              riderLongitude,
-            ]}
-          >
+        {riderPoint && (
+          <Marker position={riderPoint} icon={riderIcon}>
             <Popup>
-              🏍️ <strong>Rider Location</strong>
+              <strong>Rider</strong>
               <br />
-              Rider is here
+              Live location
             </Popup>
           </Marker>
         )}
 
-        {/* Keep map centered on rider */}
-        <MapCenter
-          latitude={riderLatitude || customerLatitude}
-          longitude={riderLongitude || customerLongitude}
-        />
+        {riderPoint && customerPoint && (
+          <Polyline
+            positions={[riderPoint, customerPoint]}
+            pathOptions={{ color: "#E8491D", weight: 3, dashArray: "6 8" }}
+          />
+        )}
+
+        <FitBounds points={points} />
       </MapContainer>
     </div>
   );

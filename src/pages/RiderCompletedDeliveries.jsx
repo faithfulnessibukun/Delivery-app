@@ -10,7 +10,7 @@ import {
 } from "react-icons/fa";
 import toast from "react-hot-toast";
 import RiderSidebar from "../components/RiderSidebar";
-import { getCurrentUser } from "../utils/supabaseStorage";
+import { getRiderUser } from "../utils/supabaseStorage";
 import { getMyCompleted } from "../utils/deliveryPools";
 
 
@@ -26,9 +26,9 @@ function RiderCompletedDeliveries() {
   // so both pages always agree on what's "completed".
   useEffect(() => {
     const loadRiderAndDeliveries = async () => {
-      const currentUser = await getCurrentUser();
+      const currentUser = await getRiderUser();
 
-      if (!currentUser || currentUser.role !== "rider") {
+      if (!currentUser) {
         toast.error("Please login as a rider.");
         navigate("/");
         return;

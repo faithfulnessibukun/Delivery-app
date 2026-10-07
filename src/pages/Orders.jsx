@@ -6,6 +6,9 @@ import { getOrders, getCurrentUser } from "../utils/supabaseStorage";
 import LiveDeliveryMap from "../components/LiveDeliveryMap";
 import { supabase } from "../lib/supabase";
 
+// The rider only appears on the customer's map once they hold the food.
+const TRACKABLE_STATUSES = ["Picked Up", "Out for Delivery", "Arrived"];
+
 function displayStatus(order) {
   return order.riderId ? order.deliveryStatus : order.status;
 }
@@ -96,6 +99,7 @@ function Orders() {
                 <div key={order.id} className="bg-white rounded-2xl shadow p-5">
                   {/* Live rider tracking */}
                   {order.riderId &&
+                    TRACKABLE_STATUSES.includes(order.deliveryStatus) &&
                     order.customerLatitude &&
                     order.customerLongitude && (
                       <div className="mb-5">

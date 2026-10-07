@@ -36,6 +36,7 @@ const PK_BY_TABLE = {
   order_items: "order_item_id",
   courier_orders: "courier_order_id",
   user_settings: "id",
+  rider_locations: "rider_id",
 };
 
 const EMBEDS = {
@@ -129,6 +130,16 @@ class QueryBuilder {
   in(col, vals) {
     const set = new Set(vals);
     this.filters.push((row) => set.has(row[col]));
+    return this;
+  }
+
+  gte(col, val) {
+    this.filters.push((row) => row[col] >= val);
+    return this;
+  }
+
+  maybeSingle() {
+    this.wantMaybeSingle = true;
     return this;
   }
 
@@ -274,6 +285,10 @@ class QueryBuilder {
       .map((row) => applyEmbed(this.table, row))
       .map((row) => pickColumns(row, this.selectStr));
 
+    if (this.wantMaybeSingle) {
+      return { data: shaped[0] || null, error: null };
+    }
+
     if (this.wantSingle) {
       if (shaped.length === 0) {
         return { data: null, error: { message: "No rows found" } };
@@ -284,6 +299,10 @@ class QueryBuilder {
     const result = { data: shaped, error: null };
     if (this.wantCount) result.count = matched.length;
     return result;
+  }
+
+  catch(reject) {
+    return this.then(undefined, reject);
   }
 
   then(resolve, reject) {

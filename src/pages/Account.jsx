@@ -1,10 +1,21 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaUserCircle, FaEnvelope, FaPhone, FaSignOutAlt, FaArrowLeft } from "react-icons/fa";
+import {
+  FaUserCircle,
+  FaEnvelope,
+  FaPhone,
+  FaSignOutAlt,
+  FaArrowLeft,
+  FaMotorcycle,
+} from "react-icons/fa";
 import toast from "react-hot-toast";
 import CustomerNav from "../components/CustomerNav";
 import { supabase } from "../lib/supabase";
-import { getCurrentUser } from "../utils/supabaseStorage";
+import {
+  getCurrentUser,
+  getRiderProfile,
+  becomeRider,
+} from "../utils/supabaseStorage";
 
 // Shows the logged-in user's basic info and a logout button. Works for
 // whichever role is actually signed in (customer/vendor/rider).
@@ -12,13 +23,37 @@ function Account() {
   const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState(null);
 
+  const [isRider, setIsRider] = useState(false);
+  const [vehicleType, setVehicleType] = useState("");
+  const [vehiclePlate, setVehiclePlate] = useState("");
+  const [savingRider, setSavingRider] = useState(false);
+
   useEffect(() => {
     const loadUser = async () => {
       const user = await getCurrentUser();
       setCurrentUser(user);
+      if (user && user.role === "customer") {
+        setIsRider(!!(await getRiderProfile(user.id)));
+      }
     };
     loadUser();
   }, []);
+
+  // Customers can also work as riders: this adds a riders row to their
+  // existing account, then opens the rider dashboard.
+  const handleBecomeRider = async () => {
+    setSavingRider(true);
+    try {
+      await becomeRider(currentUser.id, { vehicleType, vehiclePlate });
+      setIsRider(true);
+      toast.success("Rider mode is on!");
+      navigate("/rider-dashboard");
+    } catch {
+      toast.error("Couldn't enable rider mode. Please try again.");
+    } finally {
+      setSavingRider(false);
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -80,6 +115,51 @@ function Account() {
             </div>
           </div>
         </div>
+
+        {currentUser?.role === "customer" && (
+          <div className="bg-white rounded-3xl shadow p-6 mt-6">
+            <div className="flex items-center gap-3">
+              <FaMotorcycle className="text-[#E8491D] shrink-0" size={20} />
+              <div>
+                <p className="font-black text-[#1F1B16]">Work as a rider</p>
+                <p className="text-sm text-[#8A8378]">
+                  Earn delivery fees from restaurants near you.
+                </p>
+              </div>
+            </div>
+
+            {isRider ? (
+              <button
+                onClick={() => navigate("/rider-dashboard")}
+                className="mt-4 w-full bg-[#E8491D] hover:bg-[#C73A15] text-white py-3 rounded-2xl font-bold transition"
+              >
+                Switch to rider mode
+              </button>
+            ) : (
+              <div className="mt-4 space-y-3">
+                <input
+                  value={vehicleType}
+                  onChange={(e) => setVehicleType(e.target.value)}
+                  placeholder="Vehicle (e.g. Motorbike, Bicycle)"
+                  className="w-full border-2 border-[#EDE4D3] rounded-2xl p-3 bg-[#FBF6EE] focus:outline-none focus:ring-2 focus:ring-[#E8491D]"
+                />
+                <input
+                  value={vehiclePlate}
+                  onChange={(e) => setVehiclePlate(e.target.value)}
+                  placeholder="Plate number (optional)"
+                  className="w-full border-2 border-[#EDE4D3] rounded-2xl p-3 bg-[#FBF6EE] focus:outline-none focus:ring-2 focus:ring-[#E8491D]"
+                />
+                <button
+                  onClick={handleBecomeRider}
+                  disabled={savingRider}
+                  className="w-full bg-[#E8491D] hover:bg-[#C73A15] disabled:opacity-60 text-white py-3 rounded-2xl font-bold transition"
+                >
+                  {savingRider ? "Setting up..." : "Become a rider"}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         <button
           onClick={handleLogout}

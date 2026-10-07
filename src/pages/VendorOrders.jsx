@@ -11,6 +11,7 @@ import {
 } from "react-icons/fa";
 
 import Sidebar from "../components/Sidebar";
+import RiderPickerModal from "../components/RiderPickerModal";
 import { getOrders, updateOrder, getCurrentUser } from "../utils/supabaseStorage";
 
 function VendorOrders() {
@@ -18,6 +19,7 @@ function VendorOrders() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [vendor, setVendor] = useState(null);
   const [orders, setOrders] = useState([]);
+  const [pickerOrder, setPickerOrder] = useState(null);
 
   useEffect(() => {
     const loadOrders = async () => {
@@ -48,54 +50,46 @@ function VendorOrders() {
   }, [navigate]);
 
 
+  const applyUpdates = async (id, updates) => {
+    await updateOrder(id, updates);
+    setOrders((prev) =>
+      prev.map((order) => (order.id === id ? { ...order, ...updates } : order))
+    );
+  };
+
   const updateStatus = async (id, status) => {
+    // Marking an order Ready hands it off to riders, so the vendor first
+    // picks the fee and which nearby riders get the offer.
+    if (status === "Ready") {
+      setPickerOrder(orders.find((order) => order.id === id));
+      return;
+    }
+
     try {
-      // Marking an order Ready is what hands it off to riders, so this is
-      // where the vendor sets what the rider gets paid for delivering it.
-      let riderEarnings;
-      if (status === "Ready") {
-        const currentOrder = orders.find((order) => order.id === id);
-        const input = prompt(
-          "Set the delivery fee for the rider (₦):",
-          currentOrder?.riderEarnings || ""
-        );
-
-        if (input === null) return; // vendor cancelled — don't change status
-
-        const fee = Number(input);
-        if (!input.trim() || Number.isNaN(fee) || fee <= 0) {
-          toast.error("Please enter a valid delivery fee.");
-          return;
-        }
-
-        riderEarnings = fee;
-      }
-
-      const updates = { status };
-      if (riderEarnings !== undefined) {
-        updates.riderEarnings = riderEarnings;
-      }
-
-      // Update in Supabase
-      await updateOrder(id, updates);
-
-      // Update local state
-      setOrders(
-        orders.map((order) =>
-          order.id === id ? { ...order, ...updates } : order
-        )
-      );
-
-      // Give the vendor feedback.
-      if (status === "Ready") {
-        toast.success(
-          "Order is ready! It is now available for riders."
-        );
-      } else {
-        toast.success(`Order status changed to ${status}`);
-      }
+      await applyUpdates(id, { status });
+      toast.success(`Order status changed to ${status}`);
     } catch (error) {
       console.error("Error updating order status:", error);
+      toast.error("Failed to update order status");
+    }
+  };
+
+  const confirmRiders = async ({ fee, riderIds }) => {
+    const order = pickerOrder;
+    setPickerOrder(null);
+    try {
+      await applyUpdates(order.id, {
+        status: "Ready",
+        riderEarnings: fee,
+        offeredRiderIds: riderIds,
+      });
+      toast.success(
+        riderIds.length > 0
+          ? `Offered to ${riderIds.length} rider${riderIds.length > 1 ? "s" : ""}.`
+          : "Order is ready! It is now available to all riders."
+      );
+    } catch (error) {
+      console.error("Error marking order ready:", error);
       toast.error("Failed to update order status");
     }
   };
@@ -106,6 +100,15 @@ function VendorOrders() {
         sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}
       />
+
+      {pickerOrder && (
+        <RiderPickerModal
+          order={pickerOrder}
+          vendorId={vendor.id}
+          onConfirm={confirmRiders}
+          onClose={() => setPickerOrder(null)}
+        />
+      )}
 
       <main className="flex-1 md:ml-64">
 
